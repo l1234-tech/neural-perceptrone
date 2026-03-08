@@ -1,4 +1,4 @@
-#include "Activation.h"
+#include "include/neural_network/Activation.h"
 #include <cmath>
 #include <stdexcept>
 
