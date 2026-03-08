@@ -8,7 +8,7 @@ Layer::Layer(size_t inputSize, size_t outputSize)
       inputSize(inputSize),
       outputSize(outputSize)
 {
-    // Xavier-подобная инициализация: диапазон зависит от количества входов,
+    // диапазон зависит от количества входов,
     // чтобы сигнал не затухал и не взрывался при прохождении через слои
     double range = 1.0 / std::sqrt(static_cast<double>(inputSize));
 
