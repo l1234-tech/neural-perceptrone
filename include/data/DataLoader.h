@@ -1,5 +1,5 @@
 #pragma once
-#include "DataSet.h"
+#include "data/DataSet.h"
 #include <string>
 
 class DataLoader {

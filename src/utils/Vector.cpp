@@ -1,5 +1,5 @@
-#include "Vector.h"
-#include "Random.h"
+#include "utils/Vector.h"
+#include "utils/Random.h"
 
 // Конструктор: создаёт вектор из 'size' элементов, заполненных 'value'
 Vector::Vector(size_t size, double value) {
@@ -44,4 +44,8 @@ void Vector::apply(double (*func)(double)) {
     for (size_t i = 0; i < data.size(); ++i) {
         data[i] = func(data[i]);
     }
+}
+
+Vector::Vector(std::initializer_list<double> init) {
+    data = init;  
 }

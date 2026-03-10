@@ -18,4 +18,7 @@ public:
     
     // Применить функцию (для активации)
     void apply(double (*func)(double));
+
+    Vector(std::initializer_list<double> init);
+
 };

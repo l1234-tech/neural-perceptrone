@@ -1,4 +1,4 @@
-#include "DataPoint.h"
+#include "data/DataPoint.h"
 
 DataPoint::DataPoint(const std::vector<double>& feats, int lbl)
     : features(feats), label(lbl) {}

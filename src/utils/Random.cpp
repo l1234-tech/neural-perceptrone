@@ -1,4 +1,4 @@
-#include "Random.h"
+#include "utils/Random.h"
 #include <random>
 
 // Статический генератор (виден только в этом файле)

@@ -1,0 +1,40 @@
+# === Скомпилированные файлы ===
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# === Временные файлы компилятора ===
+*.idb
+*.iobj
+*.rsp
+*.sdf
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# === Папка сборки (рекомендуется!) ===
+build/
+Build/
+out/
+
+# === VS Code ===
+.vscode/
+*.code-workspace
+
+# === Другие IDE ===
+.idea/
+*.swp
+*.swo
+*~
+
+# === Системные файлы ===
+.DS_Store
+Thumbs.db
+
+# === Логи и результаты ===
+*.log
+results/

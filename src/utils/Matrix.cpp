@@ -1,4 +1,4 @@
-#include "Matrix.h"
+#include "utils/Matrix.h"
 using namespace std;
 
 Matrix::Matrix(size_t n, size_t m): stroks (n), stolbs(m){

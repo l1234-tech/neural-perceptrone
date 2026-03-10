@@ -1,4 +1,4 @@
-#include "Layer.h"
+#include "neural_network/Layer.h"
 #include "neural_network/Activation.h"
 #include "utils/Random.h"
 
