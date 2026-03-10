@@ -13,8 +13,6 @@
 int main() {
     initRandom(42);
     
-    std::cout << "=== Neural Network Lab - Part 1 Demo ===\n\n";
-    
     // 1. Тест утилит
     std::cout << "[1] Utils:\n";
     
