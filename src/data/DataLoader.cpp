@@ -1,22 +1,11 @@
 #include "data/DataLoader.h"
+#include "data/DataPoint.h"
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <memory>
 
-// ============================================================================
-// Классы парсеров
-// ============================================================================
-
-// Базовый класс парсера
-class DataParser {
-public:
-    virtual ~DataParser() = default;
-    virtual DataPoint parse(const std::string& line, char delimiter) const = 0;
-    virtual bool validateLine(const std::string& line, char delimiter) const = 0;
-};
-
-// Парсер для CSV с метками классов
+// Реализации конкретных парсеров
 class CSVWithLabelsParser : public DataParser {
 public:
     DataPoint parse(const std::string& line, char delimiter) const override {
@@ -29,12 +18,11 @@ public:
             throw std::runtime_error("Failed to parse line with labels: " + line);
         }
         
-        // Проверяем, что разделитель правильный
         if (comma != delimiter) {
             throw std::runtime_error("Invalid delimiter in line: " + line);
         }
         
-        return {{x, y}, label};
+        return DataPoint({x, y}, label);
     }
     
     bool validateLine(const std::string& line, char delimiter) const override {
@@ -47,7 +35,6 @@ public:
     }
 };
 
-// Парсер для CSV без меток классов
 class CSVWithoutLabelsParser : public DataParser {
 public:
     DataPoint parse(const std::string& line, char delimiter) const override {
@@ -59,12 +46,11 @@ public:
             throw std::runtime_error("Failed to parse line without labels: " + line);
         }
         
-        // Проверяем, что разделитель правильный
         if (comma != delimiter) {
             throw std::runtime_error("Invalid delimiter in line: " + line);
         }
         
-        return {{x, y}, -1}; // label = -1 для данных без меток
+        return DataPoint({x, y}, -1);
     }
     
     bool validateLine(const std::string& line, char delimiter) const override {
@@ -76,10 +62,7 @@ public:
     }
 };
 
-// ============================================================================
-// Вспомогательные методы DataLoader
-// ============================================================================
-
+// Остальная реализация DataLoader остается той же...
 std::ifstream DataLoader::openFileForReading() const {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -96,24 +79,15 @@ std::ofstream DataLoader::openFileForWriting() const {
     return file;
 }
 
-// ============================================================================
-// Конструктор DataLoader
-// ============================================================================
-
 DataLoader::DataLoader(const std::string& filename, bool hasLabels, char delimiter)
     : filename(filename), delimiter(delimiter) {
     
-    // Инициализируем соответствующий парсер
     if (hasLabels) {
         parser = std::make_unique<CSVWithLabelsParser>();
     } else {
         parser = std::make_unique<CSVWithoutLabelsParser>();
     }
 }
-
-// ============================================================================
-// Основные методы DataLoader
-// ============================================================================
 
 DataSet DataLoader::load() {
     DataSet dataset;
@@ -127,24 +101,19 @@ DataSet DataLoader::load() {
     while (std::getline(file, line)) {
         lineNumber++;
         
-        // Пропускаем пустые строки
         if (line.empty()) {
             continue;
         }
         
         try {
-            // Парсим строку с помощью соответствующего парсера
             DataPoint point = parser->parse(line, delimiter);
             dataset.add(point);
             validLines++;
         } catch (const std::exception& e) {
             invalidLines++;
-            // Можно добавить логирование ошибок, но не прерываем загрузку
-            // std::cerr << "Warning: Line " << lineNumber << ": " << e.what() << std::endl;
         }
     }
     
-    // Проверяем, что загружены какие-то данные
     if (validLines == 0) {
         throw std::runtime_error("No valid data loaded from file: " + filename);
     }
@@ -161,22 +130,21 @@ void DataLoader::save(const DataSet& data) {
     
     for (size_t i = 0; i < data.size(); ++i) {
         const DataPoint& point = data.get(i);
+        const std::vector<double>& features = point.getFeatures();
         
-        // Записываем данные в формате: x, y, label
-        file << point.features[0] << delimiter 
-             << point.features[1] << delimiter
-             << point.label;
+        if (features.size() < 2) {
+            throw std::runtime_error("DataPoint must have at least 2 features for CSV format");
+        }
         
-        // Добавляем перевод строки, если это не последняя точка
+        file << features[0] << delimiter 
+             << features[1] << delimiter
+             << point.getLabel();
+        
         if (i < data.size() - 1) {
             file << "\n";
         }
     }
 }
-
-// ============================================================================
-// Статические методы для обратной совместимости
-// ============================================================================
 
 DataSet DataLoader::loadFromCSV(const std::string& filename) {
     DataLoader loader(filename, true, ',');

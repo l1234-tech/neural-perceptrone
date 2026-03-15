@@ -109,7 +109,7 @@ void demonstrateDataLoader() {
 
 int main() {
     initRandom(42);
-    
+    system("chcp 65001 > nul"); 
     // 1. Тест базовых утилит (оставляем из оригинального main.cpp)
     std::cout << "\n[1] Test utils:\n";
     
