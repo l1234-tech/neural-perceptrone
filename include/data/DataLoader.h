@@ -1,6 +1,10 @@
 #pragma once
 #include "data/DataSet.h"
 #include <string>
+#include <memory>
+#include <fstream>
+
+class DataParser;
 
 class DataLoader {
 public:
