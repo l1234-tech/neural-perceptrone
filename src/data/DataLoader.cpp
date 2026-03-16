@@ -62,7 +62,6 @@ public:
     }
 };
 
-// Остальная реализация DataLoader остается той же...
 std::ifstream DataLoader::openFileForReading() const {
     std::ifstream file(filename);
     if (!file.is_open()) {
