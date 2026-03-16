@@ -56,9 +56,3 @@ ai-project/
 ├── data/                       # Данные для обучения
 │   ├── train.csv              # Обучающая выборка
 │   ├── test.csv               # Тестовая выборка
-│   └── README.md              # Описание формата данных
-│
-├── results/                    # Результаты работы
-   ├── trained_model.bin      # Сохранённая модель
-   ├── training_log.txt       # Лог обучения
-   └── predictions.csv        # Предсказания
