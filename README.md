@@ -1,6 +1,6 @@
-## здесь на с++ будет делаться нейронка, проект по с++ 2 сем - 1 лаба
+## Команда ГиКи: нейронная сеть , 1 + 2 лабы
 ---
-## Структура проекта (черновой вариант):
+## Структура проекта:
 
 ai-project/
 ├── CMakeLists.txt              # Файл requirements
@@ -8,6 +8,7 @@ ai-project/
 ├── main.cpp                    # Точка входа, демонстрация
 │
 ├── include/                    # Заголовочные файлы
+│   ├── neural_network/
 │   │   ├── NeuralNetwork.h    # Класс нейронной сети
 │   │   ├── Layer.h            # Класс слоя
 │   │   ├── Neuron.h           # Класс нейрона (не факт что нужен)
@@ -41,6 +42,7 @@ ai-project/
 │   │
 │   ├── data/
 │   │   ├── DataSet.cpp
+│   │   ├── DataPoint.cpp
 │   │   └── DataLoader.cpp
 │   │
 │   └── utils/
@@ -51,7 +53,6 @@ ai-project/
 ├── tests/                      # Юнит-тесты
 │   ├── test_neural_network.cpp
 │   ├── test_genetic_trainer.cpp
-│   └── test_data.cpp
 │
 ├── data/                       # Данные для обучения
 │   ├── train.csv              # Обучающая выборка
