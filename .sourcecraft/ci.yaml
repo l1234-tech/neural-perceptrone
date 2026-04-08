@@ -1,0 +1,63 @@
+version: 1
+name: Project Tests
+description: Запуск тестой при пуше в репу
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Сборка и запуск тестов
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Проверка кода
+      uses: actions/checkout@v3
+      
+    - name: Установка зависимостей
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ build-essential
+        
+    - name: Создание директории сборки
+      run: mkdir -p build
+      
+    - name: Конфигурация CMake
+      run: cd build && cmake ..
+      
+    - name: Сборка проекта
+      run: cd build && make -j4
+      
+    - name: Сборка тестов
+      run: |
+        cd build
+        g++ -std=c++17 -I../include \
+            ../tests/test_main.cpp \
+            ../tests/test_matrix.cpp \
+            ../tests/test_vector.cpp \
+            ../tests/test_activation.cpp \
+            ../src/utils/Matrix.cpp \
+            ../src/utils/Vector.cpp \
+            ../src/utils/Random.cpp \
+            ../src/neural_network/Activation.cpp \
+            ../src/neural_network/Layer.cpp \
+            ../src/data/DataPoint.cpp \
+            ../src/data/DataSet.cpp \
+            ../src/data/DataLoader.cpp \
+            -o test_runner
+        
+    - name: Запуск тестов
+      run: cd build && ./test_runner
+      
+    - name: Проверка результата тестов
+      run: |
+        cd build
+        if ./test_runner; then
+          echo "Все тесты прошли успешно!"
+        else
+          echo "Некоторые тесты не прошли"
+          exit 1
+        fi

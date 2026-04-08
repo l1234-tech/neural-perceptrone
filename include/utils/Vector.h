@@ -21,4 +21,12 @@ public:
 
     Vector(std::initializer_list<double> init);
 
+    // Итераторы для совместимости с STL алгоритмами
+    std::vector<double>::iterator begin() { return data.begin(); }
+    std::vector<double>::const_iterator begin() const { return data.begin(); }
+    std::vector<double>::iterator end() { return data.end(); }
+    std::vector<double>::const_iterator end() const { return data.end(); }
+
+    // Метод для преобразования в std::vector<double>
+    std::vector<double> toStdVector() const { return data; }
 };

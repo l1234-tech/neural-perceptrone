@@ -20,7 +20,7 @@ Layer::Layer(size_t inputSize, size_t outputSize)
     }
 }
 
-Vector Layer::forward(const Vector& input) {
+Vector Layer::forward(const Vector& input) const{
     Vector output(outputSize);
 
     for (size_t i = 0; i < outputSize; ++i) {

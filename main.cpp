@@ -1,147 +1,211 @@
-#include "utils/Random.h"
-#include "utils/Matrix.h"
-#include "utils/Vector.h"
-#include "neural_network/Activation.h"
-#include "neural_network/Layer.h"
+#include "neural_network/NeuralNetwork.h"
+#include "trainer/ImprovedGeneticTrainer.h"
 #include "data/DataLoader.h"
-#include "data/DataSet.h"
+#include "data/XORDataGenerator.h"
+#include "utils/Random.h"
 #include <iostream>
 #include <iomanip>
-#include <cstdlib>
+#include <vector>
+#include <chrono>
+#include <filesystem>
 
-// Функция для создания тестовых CSV файлов
-void createTestFiles() {
-    // Создаем train.csv с метками
-    std::ofstream trainFile("data/train.csv");
-    trainFile << "1.0,2.0,0\n";
-    trainFile << "3.0,4.0,1\n";
-    trainFile << "5.0,6.0,0\n";
-    trainFile << "7.0,8.0,1\n";
-    trainFile.close();
-    
-    // Создаем test.csv без меток
-    std::ofstream testFile("data/test.csv");
-    testFile << "9.0,10.0\n";
-    testFile << "11.0,12.0\n";
-    testFile << "13.0,14.0\n";
-    testFile.close();
-    
-    std::cout << "Созданы тестовые файлы data/train.csv и data/test.csv\n";
+void printHeader(const std::string& title) {
+    std::cout << "\n" << std::string(50, '=') << "\n";
+    std::cout << "  " << title << "\n";
+    std::cout << std::string(50, '=') << "\n";
 }
 
-// Демонстрация работы DataLoader
-void demonstrateDataLoader() {
-    std::cout << "\n=== Демонстрация DataLoader ===\n\n";
+std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
+    printHeader("ПОДГОТОВКА ДАННЫХ");
     
-    try {
-        // 1. Использование статических методов
-        std::cout << "1. Статические методы:\n";
-        DataSet trainData = DataLoader::loadFromCSV("data/train.csv");
-        std::cout << "   Загружено " << trainData.size() << " точек с метками\n";
+    DataSet trainData, testData;
+    
+    if (useFiles && std::filesystem::exists("data/train.csv") && 
+                    std::filesystem::exists("data/test.csv")) {
+        std::cout << "Загрузка данных из файлов...\n";
         
-        DataSet testData = DataLoader::loadFromCSVNoLabels("data/test.csv");
-        std::cout << "   Загружено " << testData.size() << " точек без меток\n";
-        
-        // 2. Использование экземплярных методов
-        std::cout << "\n2. Экземплярные методы:\n";
-        
-        // Загрузка с метками
-        DataLoader trainLoader("data/train.csv", true, ',');
-        DataSet trainData2 = trainLoader.load();
-        std::cout << "   DataLoader с метками: " << trainData2.size() << " точек\n";
-        
-        if (!trainData2.empty()) {
-            const auto& point = trainData2.get(0);
-            const auto& features = point.getFeatures();
-            std::cout << "   Первая точка: [" << features[0] << ", " << features[1] 
-                      << "] -> класс " << point.getLabel() << "\n";
-        }
-        
-        // Загрузка без меток
-        DataLoader testLoader("data/test.csv", false, ',');
-        DataSet testData2 = testLoader.load();
-        std::cout << "   DataLoader без меток: " << testData2.size() << " точек\n";
-        
-        if (!testData2.empty()) {
-            const auto& point = testData2.get(0);
-            std::cout << "   Метка первой точки: " << point.getLabel() << " (должна быть -1)\n";
-        }
-        
-        // 3. Демонстрация изменения разделителя
-        std::cout << "\n3. Изменение конфигурации:\n";
-        DataLoader loader("data/train.csv", true, ',');
-        std::cout << "   Текущий разделитель: '" << loader.getDelimiter() << "'\n";
-        
-        loader.setDelimiter(';');
-        std::cout << "   Новый разделитель: '" << loader.getDelimiter() << "'\n";
-        
-        // 4. Демонстрация сохранения данных
-        std::cout << "\n4. Сохранение данных:\n";
-        
-        // Создаем простой датасет
-        DataSet sampleData;
-        sampleData.add(DataPoint({1.5, 2.5}, 0));
-        sampleData.add(DataPoint({3.5, 4.5}, 1));
-        sampleData.add(DataPoint({5.5, 6.5}, 0));
-        
-        // Сохраняем разными способами
-        DataLoader::saveToCSV(sampleData, "data/output_static.csv");
-        std::cout << "   Сохранено через статический метод: output_static.csv\n";
-        
-        DataLoader saver("data/output_instance.csv", true, ';');
-        saver.save(sampleData);
-        std::cout << "   Сохранено через экземплярный метод: output_instance.csv\n";
-        
-        // 5. Проверка обработки ошибок
-        std::cout << "\n5. Обработка ошибок:\n";
         try {
-            DataLoader errorLoader("non_existent_file.csv", true, ',');
-            errorLoader.load();
+            trainData = DataLoader::loadFromCSV("data/train.csv");
+            testData = DataLoader::loadFromCSV("data/test.csv");
+            
+            std::cout << "Обучающая выборка: " << trainData.size() << " примеров\n";
+            std::cout << "Тестовая выборка: " << testData.size() << " примеров\n";
+            
         } catch (const std::exception& e) {
-            std::cout << "   Поймано исключение: " << e.what() << "\n";
+            std::cerr << "Ошибка загрузки данных: " << e.what() << "\n";
+            std::cout << "Переключение на генерацию данных...\n";
+            useFiles = false;
         }
+    }
+    
+    if (!useFiles) {
+        std::cout << "Генерация разнообразных данных XOR...\n";
+        
+        XORDataGenerator generator(
+            300,    // размер обучающей выборки
+            100,    // размер тестовой выборки
+            0.15,   // уровень шума 
+            0.6,    // соотношение классов 
+            42      // seed для воспроизводимости
+        );
+        
+        auto [generatedTrain, generatedTest] = generator.generateData();
+        trainData = generatedTrain;
+        testData = generatedTest;
+        
+        generator.printStats(trainData, testData);
+        
+        std::cout << "\nСохранение данных в файлы...\n";
+        generator.saveToCSV();
+    }
+    
+    return {trainData, testData};
+}
+
+// Функция обучения
+NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
+    printHeader("ОБУЧЕНИЕ МОДЕЛИ");
+    
+    NeuralNetwork network({2, 14, 10, 4, 1}); 
+    
+    std::cout << "Архитектура сети: [2 → 14 → 10 → 4 → 1]\n";
+    std::cout << "Всего параметров: " << network.getTotalParameters() << "\n";
+    
+    ImprovedGeneticTrainer trainer(
+        200,    // размер популяции
+        200,    // максимальное число поколений
+        0.5,    // вероятность мутации
+        0.7,   // вероятность скрещивания
+        0.3,   // доля элитных особей
+        0.1    // скорость обучения для локального поиска
+    );
+    
+    std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
+    
+    std::cout << "\nНачало обучения...\n";
+    auto startTime = std::chrono::steady_clock::now();
+    
+    auto lossHistory = trainer.train(network, trainData, testData);
+    
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    
+    std::cout << "\nОбучение завершено за " << duration.count() / 1000.0 << " секунд\n";
+    
+    if (!lossHistory.empty()) {
+        double initialLoss = lossHistory[0];
+        double finalLoss = lossHistory.back();
+        double improvement = (initialLoss - finalLoss) / initialLoss * 100.0;
+        
+        std::cout << "Начальная ошибка: " << std::fixed << std::setprecision(6) << initialLoss << "\n";
+        std::cout << "Финальная ошибка: " << finalLoss << "\n";
+        std::cout << "Улучшение: " << std::setprecision(1) << improvement << "%\n";
+        
+        if (lossHistory.size() > 5) {
+            std::cout << "\nПрогресс обучения:\n";
+            for (size_t i = 0; i < lossHistory.size(); i += lossHistory.size() / 5) {
+                std::cout << "  Поколение " << std::setw(3) << i 
+                          << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
+            }
+        }
+    }
+    
+    return network;
+}
+
+// Функция тестирования с расширенной статистикой
+void testModel(const NeuralNetwork& network, const DataSet& testData) {
+    printHeader("ТЕСТИРОВАНИЕ МОДЕЛИ");
+    
+    if (testData.empty()) {
+        std::cout << "Тестовая выборка пуста\n";
+        return;
+    }
+    
+    int correct = 0;
+    int falsePositives = 0;  // Класс 0 предсказан как 1
+    int falseNegatives = 0;  // Класс 1 предсказан как 0
+    int truePositives = 0;   // Класс 1 предсказан как 1
+    int trueNegatives = 0;   // Класс 0 предсказан как 0
+    
+    std::vector<std::tuple<Vector, int, int, double>> errors; // вход, ожидаемый, предсказанный, уверенность
+    
+    for (size_t i = 0; i < testData.size(); ++i) {
+        const auto& point = testData.get(i);
+        const auto& features = point.getFeatures();
+        
+        Vector input(features.size());
+        for (size_t j = 0; j < features.size(); ++j) {
+            input[j] = features[j];
+        }
+        
+        int predicted = network.predict(input);
+        int expected = point.getLabel();
+        Vector output = network.forward(input);
+        double confidence = std::abs(output[0] - 0.5) * 2.0 * 100.0;
+        
+        if (predicted == expected) {
+            correct++;
+            if (expected == 0) trueNegatives++;
+            else truePositives++;
+        } else {
+            if (expected == 0 && predicted == 1) falsePositives++;
+            if (expected == 1 && predicted == 0) falseNegatives++;
+            errors.emplace_back(input, expected, predicted, confidence);
+        }
+    }
+    
+    double accuracy = static_cast<double>(correct) / testData.size() * 100.0;
+    double loss = network.computeLoss(testData);
+    
+    std::cout << "Точность: " << std::fixed << std::setprecision(2) << accuracy << "%\n";
+    std::cout << "Ошибка (loss): " << std::setprecision(6) << loss << "\n";
+    std::cout << "Правильных: " << correct << "/" << testData.size() << "\n";
+    
+    // Расширенная статистика
+    if (testData.size() > 0) {
+        double precision = (truePositives + falsePositives) > 0 ? 
+            static_cast<double>(truePositives) / (truePositives + falsePositives) * 100.0 : 0.0;
+        double recall = (truePositives + falseNegatives) > 0 ?
+            static_cast<double>(truePositives) / (truePositives + falseNegatives) * 100.0 : 0.0;
+        double f1Score = (precision + recall) > 0 ? 
+            2.0 * precision * recall / (precision + recall) : 0.0;
+        
+        std::cout << "\nРасширенная статистика:\n";
+        std::cout << "  Precision: " << std::setprecision(1) << precision << "%\n";
+        std::cout << "  Recall: " << recall << "%\n";
+        std::cout << "  F1-Score: " << f1Score << "%\n";
+        std::cout << "  True Positives: " << truePositives << "\n";
+        std::cout << "  True Negatives: " << trueNegatives << "\n";
+        std::cout << "  False Positives: " << falsePositives << "\n";
+        std::cout << "  False Negatives: " << falseNegatives << "\n";
+    }
+    
+}
+
+// Главная функция
+int main() {
+    try {
+        // Инициализация
+        initRandom(42);  // Фиксированный seed для воспроизводимости
+        
+        printHeader("НЕЙРОННАЯ СЕТЬ");
+        
+        // 1. Подготовка данных (генерация или загрузка)
+        bool useExistingFiles = false;  // Меняйте на true, чтобы использовать существующие файлы
+        auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
+        
+        // 2. Обучение модели
+        NeuralNetwork model = trainModel(trainData, testData);
+        
+        // 3. Тестирование модели
+        testModel(model, testData);
         
     } catch (const std::exception& e) {
-        std::cout << "Ошибка: " << e.what() << "\n";
-        std::cout << "Создайте файлы data/train.csv и data/test.csv\n";
+        std::cerr << "\nОШИБКА: " << e.what() << "\n";
+        std::cerr << "\nВозможные причины:\n";
+        std::cerr << "1. Проблемы с генерацией данных\n";
+        std::cerr << "2. Недостаточно памяти\n";
     }
-}
-
-int main() {
-    initRandom(42);
-    system("chcp 65001 > nul"); 
-    // 1. Тест базовых утилит
-    std::cout << "\n[1] Test utils:\n";
-    
-    Matrix m(2, 2);
-    m.at(0,0) = 1.0;
-    m.at(0,1) = 2.0;
-    m.at(1,0) = 3.0; 
-    m.at(1,1) = 4.0;
-    std::cout << "- Matrix 2x2: OK\n";
-    
-    Vector v1({1.0, 2.0}), v2({3.0, 4.0});
-    std::cout << "- Скалярное произведение векторов: " << v1.dot(v2) << "\n";
-    std::cout << "- sigmoida(2.0): " << Activation::sigmoid(2.0) << "\n";
-    
-    // 2. Тест нейронной сети 
-    std::cout << "\n[2] Тест слоя нейросети:\n";
-    Layer hidden(2, 4);
-    Vector input({0.3, 0.8});
-    Vector output = hidden.forward(input);
-    
-    std::cout << "- Входы: [" << input[0] << ", " << input[1] << "]\n";
-    std::cout << "- Выходы: [5";
-    for (size_t i = 0; i < output.size(); ++i) {
-        std::cout << std::fixed << std::setprecision(3) << output[i];
-        if (i < output.size() - 1) std::cout << ", ";
-    }
-    std::cout << "]\n";
-    
-    // 3. Демонстрация DataLoader
-    std::cout << "\n[3] Тест DataLoader:\n";
-    demonstrateDataLoader();
-    
-    std::cout << "\n=============================================\n";
-    std::cout << "Все тесты выполнены успешно!\n";
+    return 0;
 }

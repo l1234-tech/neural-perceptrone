@@ -16,7 +16,7 @@ public:
     Layer(size_t inputSize, size_t outputSize);
 
     // Прямой проход: вход -> взвешенная сумма + смещение -> сигмоида -> выход
-    Vector forward(const Vector& input);
+    Vector forward(const Vector& input) const;
 
     // Все параметры слоя (веса + смещения) в один плоский вектор
     // Порядок: веса строка за строкой, потом все смещения

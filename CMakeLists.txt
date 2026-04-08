@@ -16,6 +16,9 @@ add_library(nn_lib
     src/data/DataLoader.cpp
     src/neural_network/Activation.cpp
     src/neural_network/Layer.cpp
+    src/neural_network/NeuralNetwork.cpp
+    src/trainer/ImprovedGeneticTrainer.cpp
+    src/data/XORDataGenerator.cpp
 )
 
 # Исполняемый файл
