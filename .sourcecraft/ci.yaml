@@ -1,12 +1,8 @@
 on:
   push:
     workflows: build-and-test
-    filter:
-      branches: [main, develop]
   pull_request:
     workflows: build-and-test
-    filter:
-      branches: [main]
 
 workflows:
   build-and-test:
@@ -14,7 +10,6 @@ workflows:
       - name: build-and-test-project
         cubes:
           - name: setup-and-build
-            image: docker.io/library/ubuntu:22.04
             script:
               - apt-get update && apt-get install -y cmake g++ build-essential git
               - mkdir -p build
@@ -23,7 +18,6 @@ workflows:
               - echo "Проект успешно собран"
           
           - name: compile-tests
-            image: docker.io/library/ubuntu:22.04
             script:
               - cd build
               - g++ -std=c++17 -I../include \
@@ -43,7 +37,6 @@ workflows:
               - echo "Тесты скомпилированы"
           
           - name: run-tests
-            image: docker.io/library/ubuntu:22.04
             script:
               - cd build
               - chmod +x test_runner
