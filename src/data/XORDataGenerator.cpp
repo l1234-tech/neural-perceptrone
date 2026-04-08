@@ -69,19 +69,15 @@ DataSet XORDataGenerator::generateDataset(size_t size, bool isTrain) {
         dataset.add(DataPoint({x, y}, label));
     }
     
-    // Добавляем специальные точки (только в обучающую выборку)
     if (isTrain) {
         addSpecialPoints(dataset, size / 10); // 10% специальных точек
     }
     
-    // Перемешиваем данные
-    // Note: DataSet не имеет метода shuffle, поэтому создадим временный вектор
     std::vector<DataPoint> points;
     for (size_t i = 0; i < dataset.size(); ++i) {
         points.push_back(dataset.get(i));
     }
     
-    // Простое перемешивание
     for (size_t i = 0; i < points.size(); ++i) {
         size_t j = randomInt(0, points.size() - 1);
         if (i != j) {
@@ -89,7 +85,6 @@ DataSet XORDataGenerator::generateDataset(size_t size, bool isTrain) {
         }
     }
     
-    // Создаем новый DataSet с перемешанными точки
     DataSet shuffledDataset;
     for (const auto& point : points) {
         shuffledDataset.add(point);
@@ -123,7 +118,6 @@ std::pair<double, double> XORDataGenerator::generatePoint(bool targetClass) {
         }
     }
     
-    // Добавляем небольшой случайный сдвиг для разнообразия
     x += randomDouble(-0.05, 0.05);
     y += randomDouble(-0.05, 0.05);
     
@@ -135,12 +129,9 @@ std::pair<double, double> XORDataGenerator::generatePoint(bool targetClass) {
 }
 
 int XORDataGenerator::calculateLabel(double x, double y, bool addNoise) {
-    // Чистая XOR логика
     bool isClass0 = (x < 0.5 && y < 0.5) || (x >= 0.5 && y >= 0.5);
     
-    // Добавляем шум если нужно
     if (addNoise) {
-        // С вероятностью noiseLevel меняем класс
         if (randomDouble(0.0, 1.0) < noiseLevel) {
             isClass0 = !isClass0;
         }
@@ -150,7 +141,6 @@ int XORDataGenerator::calculateLabel(double x, double y, bool addNoise) {
 }
 
 void XORDataGenerator::addSpecialPoints(DataSet& dataset, size_t count) {
-    // Добавляем специальные точки для лучшего обучения
     
     // 1. Точки точно на границе 0.5
     for (size_t i = 0; i < count / 4; ++i) {
@@ -216,7 +206,6 @@ void XORDataGenerator::saveToCSV(const DataSet& trainData,
     std::filesystem::create_directories(trainFilePath.parent_path());
     std::filesystem::create_directories(testFilePath.parent_path());
     
-    // Сохраняем обучающие данные
     std::ofstream trainFile(trainPath);
     if (!trainFile.is_open()) {
         throw std::runtime_error("Не удалось открыть файл для записи: " + trainPath);
@@ -231,24 +220,23 @@ void XORDataGenerator::saveToCSV(const DataSet& trainData,
     }
     trainFile.close();
     
-    // Сохраняем тестовые данные
     std::ofstream testFile(testPath);
     if (!testFile.is_open()) {
         throw std::runtime_error("Не удалось открыть файл для записи: " + testPath);
     }
     
-    testFile << "x1,x2,label\n";
+    testFile << "x1,x2\n"; 
     for (size_t i = 0; i < testData.size(); ++i) {
         const auto& point = testData.get(i);
         const auto& features = point.getFeatures();
         testFile << std::fixed << std::setprecision(4) 
-                << features[0] << "," << features[1] << "," << point.getLabel() << "\n";
+                << features[0] << "," << features[1] << "\n"; 
     }
     testFile.close();
     
     std::cout << "Данные сохранены в:\n";
-    std::cout << "  " << trainPath << " (" << trainData.size() << " точек)\n";
-    std::cout << "  " << testPath << " (" << testData.size() << " точек)\n";
+    std::cout << "  " << trainPath << " (" << trainData.size() << " точек, с метками)\n";
+    std::cout << "  " << testPath << " (" << testData.size() << " точек, без меток)\n";
 }
 
 void XORDataGenerator::printStats(const DataSet& trainData, const DataSet& testData) const {

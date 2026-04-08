@@ -19,8 +19,7 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
     printHeader("ПОДГОТОВКА ДАННЫХ");
     
     DataSet trainData, testData;
-    
-    // Создаем папку data если ее нет
+
     std::filesystem::create_directories("data");
     
     if (useFiles && std::filesystem::exists("data/train.csv") && 
@@ -43,13 +42,12 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
         }
     }
     
-    // Генерация новых данных
     std::cout << "Генерация разнообразных данных XOR...\n";
     
     XORDataGenerator generator(
-        300,    // размер обучающей выборки
-        100,    // размер тестовой выборки
-        0.15,   // уровень шума 
+        400,    // размер обучающей выборки
+        150,    // размер тестовой выборки
+        0.2,   // уровень шума 
         0.6,    // соотношение классов 
         42      // seed для воспроизводимости
     );
@@ -61,29 +59,25 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
     generator.printStats(trainData, testData);
     
     std::cout << "\nСохранение данных в файлы...\n";
-    // ИСПРАВЛЕННЫЙ ВЫЗОВ: передаем сгенерированные данные
     generator.saveToCSV(trainData, testData, "data/train.csv", "data/test.csv");
     
     return {trainData, testData};
 }
 
-// Функция обучения с улучшенными параметрами
 NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ");
     
-    // Улучшенная архитектура для XOR (больше нейронов для лучшего обучения)
     NeuralNetwork network({2, 8, 4, 1}); 
     
     std::cout << "Архитектура сети: [2 → 8 → 4 → 1]\n";
     std::cout << "Всего параметров: " << network.getTotalParameters() << "\n";
     
-    // Улучшенные параметры GeneticTrainer
     GeneticTrainer trainer(
-        150,   // размер популяции (увеличено для лучшего поиска)
-        150,   // максимальное число поколений (увеличено)
-        0.15,  // вероятность мутации (оптимизировано)
+        300,   // размер популяции 
+        200,   // максимальное число поколений 
+        0.15,  // вероятность мутации 
         0.8,    // вероятность скрещивания
-        0.15    // доля элитных особей (оптимизировано)
+        0.15    // доля элитных особей 
     );
     
     std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
@@ -119,7 +113,6 @@ NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     return network;
 }
 
-// Функция тестирования с расширенной статистикой
 void testModel(const NeuralNetwork& network, const DataSet& testData) {
     printHeader("ТЕСТИРОВАНИЕ МОДЕЛИ");
     
@@ -129,7 +122,7 @@ void testModel(const NeuralNetwork& network, const DataSet& testData) {
     }
     
     int correct = 0;
-    int falsePositives = 0;  // Класс 0 предсказан как 1
+    int falsePositives = 0;  // Класс 0 предсказан как 1    
     int falseNegatives = 0;  // Класс 1 предсказан как 0
     int truePositives = 0;   // Класс 1 предсказан как 1
     int trueNegatives = 0;   // Класс 0 предсказан как 0
@@ -189,21 +182,17 @@ void testModel(const NeuralNetwork& network, const DataSet& testData) {
     
 }
 
-// Главная функция
 int main() {
     try {
-        // Инициализация
-        initRandom(42);  // Фиксированный seed для воспроизводимости
+        initRandom(42);  // seed 
         
         system("chcp 65001 > nul");
         
         bool useExistingFiles = false;  
         auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
         
-        // 2. Обучение модели
         NeuralNetwork model = trainModel(trainData, testData);
         
-        // 3. Тестирование модели
         testModel(model, testData);
         
     } catch (const std::exception& e) {

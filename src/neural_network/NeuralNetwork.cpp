@@ -13,7 +13,7 @@ NeuralNetwork::NeuralNetwork(const std::vector<size_t>& architecture)
         throw std::invalid_argument("Архитектура должна содержать минимум входной и выходной слои");
     }
     
-    // Создаём слои: для каждой пары (input_size, output_size) в архитектуре
+    // Создаём слои: для каждой пары (input_size, output_size)
     for (size_t i = 0; i < architecture.size() - 1; ++i) {
         layers.emplace_back(architecture[i], architecture[i + 1]);
     }
@@ -59,8 +59,7 @@ double NeuralNetwork::computeLoss(const Vector& output, const Vector& target) co
         throw std::invalid_argument("Размеры выходного вектора и целевого вектора не совпадают");
     }
     
-    // Binary cross-entropy loss (лучше подходит для бинарной классификации)
-    const double epsilon = 1e-8;  // Для стабильности вычислений логарифма
+    const double epsilon = 1e-8; 
     double loss = 0.0;
     for (size_t i = 0; i < output.size(); ++i) {
         double y = target[i];
@@ -82,7 +81,6 @@ Vector NeuralNetwork::computeOutputGradient(const Vector& output, const Vector& 
     Vector gradient(output.size());
     
     // Градиент для binary cross-entropy с сигмоидой: output - target
-    // Производная сигмоиды уже учтена в этой простой формуле
     for (size_t i = 0; i < output.size(); ++i) {
         gradient[i] = output[i] - target[i];
     }
@@ -133,16 +131,10 @@ std::vector<std::vector<double>> NeuralNetwork::backward(const Vector& input, co
             for (size_t neuronIdx = 0; neuronIdx < layerOutput.size(); ++neuronIdx) {
                 double neuronGradient = currentGradient[neuronIdx];
                 
-                // Для каждого входа добавляем вклад от этого нейрона
                 for (size_t inputIdx = 0; inputIdx < layerInput.size(); ++inputIdx) {
-                    // Нужно получить вес, но у нас нет доступа к весам извне
-                    // В упрощённой версии пропускаем этот шаг
-                    // В полной реализации нужно хранить веса или получать их через getWeights()
                 }
             }
             
-            // Упрощённая версия: просто передаём градиент дальше
-            // В реальной реализации нужно умножать на транспонированную матрицу весов
             currentGradient = Vector(layerInput.size(), 0.0);
             for (size_t j = 0; j < std::min(currentGradient.size(), nextGradient.size()); ++j) {
                 currentGradient[j] = nextGradient[j];
@@ -158,10 +150,8 @@ void NeuralNetwork::updateWeights(const std::vector<std::vector<double>>& gradie
         throw std::invalid_argument("Количество градиентов не соответствует количеству слоёв");
     }
     
-    // Получаем текущие веса
     std::vector<double> currentWeights = getWeights();
-    
-    // Применяем градиентный спуск
+
     size_t weightIndex = 0;
     for (size_t layerIdx = 0; layerIdx < layers.size(); ++layerIdx) {
         const auto& layerGradients = gradients[layerIdx];
@@ -172,19 +162,15 @@ void NeuralNetwork::updateWeights(const std::vector<std::vector<double>>& gradie
         }
     }
     
-    // Устанавливаем обновлённые веса
     setWeights(currentWeights);
 }
 
 double NeuralNetwork::trainOneExample(const Vector& input, const Vector& target, double learningRate) {
-    // Прямой проход для вычисления ошибки
     Vector output = forward(input);
     double loss = computeLoss(output, target);
     
-    // Обратное распространение
     auto gradients = backward(input, target);
     
-    // Обновление веса
     updateWeights(gradients, learningRate);
     
     return loss;
@@ -238,13 +224,10 @@ size_t NeuralNetwork::getTotalParameters() const {
 int NeuralNetwork::predict(const Vector& input) const {
     Vector output = forward(input);
     
-    // Для бинарной классификации
     if (output.size() == 1) {
         return (output[0] >= 0.5) ? 1 : 0;
     }
     
-    // Для многоклассовой классификации
-    // Используем begin() и end(), которые теперь есть в классе Vector
     return Activation::argmax(std::vector<double>(output.begin(), output.end()));
 }
 
@@ -259,13 +242,11 @@ double NeuralNetwork::computeLoss(const DataSet& dataset) const {
         const auto& point = dataset.get(i);
         const auto& features = point.getFeatures();
         
-        // Преобразуем вектор признаков в Vector
         Vector input(features.size());
         for (size_t j = 0; j < features.size(); ++j) {
             input[j] = features[j];
         }
         
-        // Целевой вектор
         Vector target(architecture.back(), 0.0);
         int label = point.getLabel();
         
@@ -274,7 +255,7 @@ double NeuralNetwork::computeLoss(const DataSet& dataset) const {
             // label должен быть 0 или 1
             target[0] = static_cast<double>(label);
         } else {
-            // Многоклассовая классификация (one-hot encoding)
+            // Многоклассовая классификация 
             if (label >= 0 && static_cast<size_t>(label) < target.size()) {
                 target[label] = 1.0;
             }

@@ -39,8 +39,6 @@ void GeneticTrainer::initializePopulation(NeuralNetwork& network) {
     for (size_t i = 0; i < populationSize; ++i) {
         GeneticIndividual individual(chromosomeSize);
         
-        // Инициализация случайными весами в диапазоне [-0.5, 0.5]
-        // Более узкий диапазон помогает быстрее сходиться
         double range = 0.5;
         for (size_t j = 0; j < chromosomeSize; ++j) {
             individual.chromosome[j] = randomDouble(-range, range);
@@ -60,9 +58,7 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
         
         // Вычисляем ошибку (loss) на обучающей выборке
         individual.loss = network.computeLoss(trainingData);
-        
-        // Приспособленность обратно пропорциональна ошибке
-        // Добавляем маленькое значение, чтобы избежать деления на ноль
+
         individual.fitness = 1.0 / (individual.loss + 1e-8);
     }
     
@@ -83,15 +79,12 @@ void GeneticTrainer::tournamentSelection(size_t tournamentSize) {
         newPopulation.push_back(population[i]);
     }
     
-    // Турнирная селекция для остальной части популяции
     while (newPopulation.size() < populationSize) {
-        // Выбираем случайных особей для турнира
         std::vector<size_t> tournamentIndices;
         for (size_t i = 0; i < tournamentSize; ++i) {
             tournamentIndices.push_back(randomInt(0, population.size() - 1));
         }
         
-        // Находим лучшую особь в турнире
         size_t bestIndex = tournamentIndices[0];
         double bestFitness = population[bestIndex].fitness;
         
@@ -110,13 +103,11 @@ void GeneticTrainer::tournamentSelection(size_t tournamentSize) {
 }
 
 void GeneticTrainer::uniformCrossover() {
-    // Однородный кроссинговер (каждый ген независимо от родителя)
     for (size_t i = 0; i + 1 < population.size(); i += 2) {
         if (randomDouble(0.0, 1.0) < crossoverRate) {
             GeneticIndividual& parent1 = population[i];
             GeneticIndividual& parent2 = population[i + 1];
             
-            // Для каждого гена выбираем от какого родителя взять
             for (size_t j = 0; j < parent1.chromosome.size(); ++j) {
                 if (randomDouble(0.0, 1.0) < 0.5) {
                     std::swap(parent1.chromosome[j], parent2.chromosome[j]);
@@ -127,12 +118,10 @@ void GeneticTrainer::uniformCrossover() {
 }
 
 void GeneticTrainer::simpleMutation() {
-    // Улучшенная мутация с адаптивным размером шага
     for (size_t i = 0; i < population.size(); ++i) {
         for (size_t j = 0; j < population[i].chromosome.size(); ++j) {
             if (randomDouble(0.0, 1.0) < mutationRate) {
-                // Адаптивная мутация: размер шага зависит от текущего значения
-                // Меньшие шаги для значений близких к 0, большие для значений далеких от 0
+
                 double currentValue = population[i].chromosome[j];
                 double mutationScale = 0.1 * (1.0 + std::abs(currentValue));
                 double mutation = randomDouble(-mutationScale, mutationScale);
@@ -156,7 +145,6 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     lossHistory.clear();
     bestLossHistory.clear();
     
-    // Инициализируем популяцию
     initializePopulation(network);
     
     // Основной цикл генетического алгоритма
@@ -185,17 +173,12 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
                       << ", лучшая fitness = " << std::setprecision(4) << population[0].fitness << std::endl;
         }
         
-        // Селекция
         tournamentSelection();
         
-        // Скрещивание
         uniformCrossover();
         
-        // Мутация
         simpleMutation();
-        
-        // Ранняя остановка, если ошибка достаточно мала
-        // Для binary cross-entropy loss значение 0.05 соответствует хорошей точности
+
         if (bestLoss < 0.05) {
             std::cout << "Ранняя остановка: достигнута достаточная точность (loss < 0.05)" << std::endl;
             break;
