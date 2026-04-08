@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
 
 XORDataGenerator::XORDataGenerator(size_t trainSize, 
                                   size_t testSize,
@@ -88,7 +89,7 @@ DataSet XORDataGenerator::generateDataset(size_t size, bool isTrain) {
         }
     }
     
-    // Создаем новый DataSet с перемешанными точками
+    // Создаем новый DataSet с перемешанными точки
     DataSet shuffledDataset;
     for (const auto& point : points) {
         shuffledDataset.add(point);
@@ -204,9 +205,16 @@ void XORDataGenerator::addSpecialPoints(DataSet& dataset, size_t count) {
     }
 }
 
-void XORDataGenerator::saveToCSV(const std::string& trainPath,
+void XORDataGenerator::saveToCSV(const DataSet& trainData, 
+                                const DataSet& testData,
+                                const std::string& trainPath,
                                 const std::string& testPath) {
-    auto [trainData, testData] = generateData();
+    // Создаем папку data, если она не существует
+    std::filesystem::path trainFilePath(trainPath);
+    std::filesystem::path testFilePath(testPath);
+    
+    std::filesystem::create_directories(trainFilePath.parent_path());
+    std::filesystem::create_directories(testFilePath.parent_path());
     
     // Сохраняем обучающие данные
     std::ofstream trainFile(trainPath);

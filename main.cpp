@@ -1,5 +1,5 @@
 #include "neural_network/NeuralNetwork.h"
-#include "trainer/ImprovedGeneticTrainer.h"
+#include "trainer/GeneticTrainer.h"
 #include "data/DataLoader.h"
 #include "data/XORDataGenerator.h"
 #include "utils/Random.h"
@@ -20,6 +20,9 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
     
     DataSet trainData, testData;
     
+    // Создаем папку data если ее нет
+    std::filesystem::create_directories("data");
+    
     if (useFiles && std::filesystem::exists("data/train.csv") && 
                     std::filesystem::exists("data/test.csv")) {
         std::cout << "Загрузка данных из файлов...\n";
@@ -31,6 +34,8 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
             std::cout << "Обучающая выборка: " << trainData.size() << " примеров\n";
             std::cout << "Тестовая выборка: " << testData.size() << " примеров\n";
             
+            return {trainData, testData};
+            
         } catch (const std::exception& e) {
             std::cerr << "Ошибка загрузки данных: " << e.what() << "\n";
             std::cout << "Переключение на генерацию данных...\n";
@@ -38,46 +43,47 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
         }
     }
     
-    if (!useFiles) {
-        std::cout << "Генерация разнообразных данных XOR...\n";
-        
-        XORDataGenerator generator(
-            300,    // размер обучающей выборки
-            100,    // размер тестовой выборки
-            0.15,   // уровень шума 
-            0.6,    // соотношение классов 
-            42      // seed для воспроизводимости
-        );
-        
-        auto [generatedTrain, generatedTest] = generator.generateData();
-        trainData = generatedTrain;
-        testData = generatedTest;
-        
-        generator.printStats(trainData, testData);
-        
-        std::cout << "\nСохранение данных в файлы...\n";
-        generator.saveToCSV();
-    }
+    // Генерация новых данных
+    std::cout << "Генерация разнообразных данных XOR...\n";
+    
+    XORDataGenerator generator(
+        300,    // размер обучающей выборки
+        100,    // размер тестовой выборки
+        0.15,   // уровень шума 
+        0.6,    // соотношение классов 
+        42      // seed для воспроизводимости
+    );
+    
+    auto [generatedTrain, generatedTest] = generator.generateData();
+    trainData = generatedTrain;
+    testData = generatedTest;
+    
+    generator.printStats(trainData, testData);
+    
+    std::cout << "\nСохранение данных в файлы...\n";
+    // ИСПРАВЛЕННЫЙ ВЫЗОВ: передаем сгенерированные данные
+    generator.saveToCSV(trainData, testData, "data/train.csv", "data/test.csv");
     
     return {trainData, testData};
 }
 
-// Функция обучения
+// Функция обучения с улучшенными параметрами
 NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ");
     
-    NeuralNetwork network({2, 14, 10, 4, 1}); 
+    // Упрощенная архитектура для XOR (быстрее обучение)
+    NeuralNetwork network({2, 4, 1}); 
     
-    std::cout << "Архитектура сети: [2 → 14 → 10 → 4 → 1]\n";
+    std::cout << "Архитектура сети: [2 → 4 → 1]\n";
     std::cout << "Всего параметров: " << network.getTotalParameters() << "\n";
     
-    ImprovedGeneticTrainer trainer(
-        200,    // размер популяции
-        200,    // максимальное число поколений
-        0.5,    // вероятность мутации
-        0.7,   // вероятность скрещивания
-        0.3,   // доля элитных особей
-        0.1    // скорость обучения для локального поиска
+    // Улучшенные параметры GeneticTrainer
+    GeneticTrainer trainer(
+        80,    // размер популяции 
+        80,    // максимальное число поколений
+        0.2,    // вероятность мутации 
+        0.8,    // вероятность скрещивания
+        0.2     // доля элитных особей 
     );
     
     std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
@@ -189,10 +195,11 @@ int main() {
         // Инициализация
         initRandom(42);  // Фиксированный seed для воспроизводимости
         
+        system("chcp 65001 > nul");
+
         printHeader("НЕЙРОННАЯ СЕТЬ");
         
-        // 1. Подготовка данных (генерация или загрузка)
-        bool useExistingFiles = false;  // Меняйте на true, чтобы использовать существующие файлы
+        bool useExistingFiles = false;  
         auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
         
         // 2. Обучение модели
@@ -206,6 +213,7 @@ int main() {
         std::cerr << "\nВозможные причины:\n";
         std::cerr << "1. Проблемы с генерацией данных\n";
         std::cerr << "2. Недостаточно памяти\n";
+        std::cerr << "3. Ошибка в конфигурации алгоритма\n";
     }
     return 0;
 }

@@ -13,28 +13,10 @@ workflows:
             script:
               - apt-get update && apt-get install -y cmake g++ build-essential git
               - mkdir -p build
+              - if [ -d "data" ]; then cp -r data build/; else echo "Папка data не найдена в корне!"; ls -la; fi
               - cd build && cmake ..
               - make -j4
               - echo "Проект успешно собран"
-          
-          - name: compile-tests
-            script:
-              - cd build
-              - g++ -std=c++17 -I../include \
-                  ../tests/test_main.cpp \
-                  ../tests/test_matrix.cpp \
-                  ../tests/test_vector.cpp \
-                  ../tests/test_activation.cpp \
-                  ../src/utils/Matrix.cpp \
-                  ../src/utils/Vector.cpp \
-                  ../src/utils/Random.cpp \
-                  ../src/neural_network/Activation.cpp \
-                  ../src/neural_network/Layer.cpp \
-                  ../src/data/DataPoint.cpp \
-                  ../src/data/DataSet.cpp \
-                  ../src/data/DataLoader.cpp \
-                  -o test_runner
-              - echo "Тесты скомпилированы"
           
           - name: run-tests
             script:

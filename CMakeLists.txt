@@ -14,18 +14,31 @@ add_library(nn_lib
     src/data/DataPoint.cpp
     src/data/DataSet.cpp
     src/data/DataLoader.cpp
+    src/data/XORDataGenerator.cpp
     src/neural_network/Activation.cpp
     src/neural_network/Layer.cpp
     src/neural_network/NeuralNetwork.cpp
-    src/trainer/ImprovedGeneticTrainer.cpp
-    src/data/XORDataGenerator.cpp
+    src/trainer/GeneticTrainer.cpp
+    src/trainer/TrainerConfig.cpp
 )
 
-# Исполняемый файл
+# Основной исполняемый файл
 add_executable(main main.cpp)
 
 # Связать main с библиотекой
 target_link_libraries(main nn_lib)
+
+# Исполняемый файл для тестов
+add_executable(test_runner
+    tests/test_main.cpp
+    tests/test_matrix.cpp
+    tests/test_vector.cpp
+    tests/test_activation.cpp
+    tests/test_genetic_trainer.cpp
+)
+
+# Связать тесты с библиотекой
+target_link_libraries(test_runner nn_lib)
 
 # Скопировать папку data в build
 file(COPY data DESTINATION ${CMAKE_BINARY_DIR})

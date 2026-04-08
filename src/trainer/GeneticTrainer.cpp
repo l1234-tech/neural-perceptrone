@@ -1,4 +1,4 @@
-#include "trainer/ImprovedGeneticTrainer.h"
+#include "trainer/GeneticTrainer.h"
 #include "neural_network/NeuralNetwork.h"
 #include "data/DataSet.h"
 #include "utils/Random.h"
@@ -10,18 +10,16 @@
 #include <algorithm>
 #include <numeric>
 
-ImprovedGeneticTrainer::ImprovedGeneticTrainer(size_t populationSize,
-                                               size_t maxGenerations,
-                                               double mutationRate,
-                                               double crossoverRate,
-                                               double elitismRatio,
-                                               double learningRate)
+GeneticTrainer::GeneticTrainer(size_t populationSize,
+                               size_t maxGenerations,
+                               double mutationRate,
+                               double crossoverRate,
+                               double elitismRatio)
     : populationSize(populationSize),
       maxGenerations(maxGenerations),
       mutationRate(mutationRate),
       crossoverRate(crossoverRate),
-      elitismRatio(elitismRatio),
-      learningRate(learningRate) {
+      elitismRatio(elitismRatio) {
     
     if (populationSize < 10) {
         throw std::invalid_argument("Размер популяции должен быть не менее 10");
@@ -31,39 +29,26 @@ ImprovedGeneticTrainer::ImprovedGeneticTrainer(size_t populationSize,
     }
 }
 
-void ImprovedGeneticTrainer::initializePopulation(NeuralNetwork& network) {
+void GeneticTrainer::initializePopulation(NeuralNetwork& network) {
     population.clear();
     population.reserve(populationSize);
     
     size_t chromosomeSize = network.getTotalParameters();
     
-    // Инициализация популяции с разными стратегиями
+    // Инициализация популяции случайными весами
     for (size_t i = 0; i < populationSize; ++i) {
-        ImprovedIndividual individual(chromosomeSize);
+        GeneticIndividual individual(chromosomeSize);
         
-        // Разные стратегии инициализации для разнообразия
-        if (i < populationSize / 3) {
-            // Маленькие случайные веса
-            for (size_t j = 0; j < chromosomeSize; ++j) {
-                individual.chromosome[j] = randomDouble(-0.5, 0.5);
-            }
-        } else if (i < 2 * populationSize / 3) {
-            // Веса в диапазоне [-1, 1]
-            for (size_t j = 0; j < chromosomeSize; ++j) {
-                individual.chromosome[j] = randomDouble(-1.0, 1.0);
-            }
-        } else {
-            // Очень маленькие веса (почти нулевые)
-            for (size_t j = 0; j < chromosomeSize; ++j) {
-                individual.chromosome[j] = randomDouble(-0.1, 0.1);
-            }
+        // Инициализация случайными весами в диапазоне [-1, 1]
+        for (size_t j = 0; j < chromosomeSize; ++j) {
+            individual.chromosome[j] = randomDouble(-1.0, 1.0);
         }
         
         population.push_back(individual);
     }
 }
 
-void ImprovedGeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& trainingData) {
+void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& trainingData) {
     // Сохраняем оригинальные веса сети
     std::vector<double> originalWeights = network.getWeights();
     
@@ -77,9 +62,6 @@ void ImprovedGeneticTrainer::evaluatePopulation(NeuralNetwork& network, const Da
         // Приспособленность обратно пропорциональна ошибке
         // Добавляем маленькое значение, чтобы избежать деления на ноль
         individual.fitness = 1.0 / (individual.loss + 1e-8);
-        
-        // Увеличиваем возраст особи
-        individual.age++;
     }
     
     // Восстанавливаем оригинальные веса
@@ -89,15 +71,14 @@ void ImprovedGeneticTrainer::evaluatePopulation(NeuralNetwork& network, const Da
     std::sort(population.begin(), population.end());
 }
 
-void ImprovedGeneticTrainer::tournamentSelection(size_t tournamentSize) {
-    std::vector<ImprovedIndividual> newPopulation;
+void GeneticTrainer::tournamentSelection(size_t tournamentSize) {
+    std::vector<GeneticIndividual> newPopulation;
     newPopulation.reserve(populationSize);
     
     // Сохраняем элитных особей
     size_t eliteCount = static_cast<size_t>(populationSize * elitismRatio);
     for (size_t i = 0; i < eliteCount && i < population.size(); ++i) {
         newPopulation.push_back(population[i]);
-        newPopulation.back().age = population[i].age; // Сохраняем возраст
     }
     
     // Турнирная селекция для остальной части популяции
@@ -126,12 +107,12 @@ void ImprovedGeneticTrainer::tournamentSelection(size_t tournamentSize) {
     population = std::move(newPopulation);
 }
 
-void ImprovedGeneticTrainer::uniformCrossover() {
+void GeneticTrainer::uniformCrossover() {
     // Однородный кроссинговер (каждый ген независимо от родителя)
     for (size_t i = 0; i + 1 < population.size(); i += 2) {
         if (randomDouble(0.0, 1.0) < crossoverRate) {
-            ImprovedIndividual& parent1 = population[i];
-            ImprovedIndividual& parent2 = population[i + 1];
+            GeneticIndividual& parent1 = population[i];
+            GeneticIndividual& parent2 = population[i + 1];
             
             // Для каждого гена выбираем от какого родителя взять
             for (size_t j = 0; j < parent1.chromosome.size(); ++j) {
@@ -143,26 +124,13 @@ void ImprovedGeneticTrainer::uniformCrossover() {
     }
 }
 
-void ImprovedGeneticTrainer::adaptiveMutation() {
-    // Адаптивная мутация: больше мутаций для худших особей
+void GeneticTrainer::simpleMutation() {
+    // Простая мутация с фиксированной вероятностью
     for (size_t i = 0; i < population.size(); ++i) {
-        double individualMutationRate = mutationRate;
-        
-        // Увеличиваем вероятность мутации для худших особей
-        if (i > population.size() / 2) {
-            individualMutationRate *= 2.0;
-        }
-        
-        // Уменьшаем вероятность мутации для старых хороших особей
-        if (i < population.size() / 4 && population[i].age > 10) {
-            individualMutationRate *= 0.5;
-        }
-        
         for (size_t j = 0; j < population[i].chromosome.size(); ++j) {
-            if (randomDouble(0.0, 1.0) < individualMutationRate) {
-                // Гауссова мутация с уменьшающимся размахом
-                double mutationStrength = 0.5 * exp(-population[i].age / 50.0);
-                double mutation = randomDouble(-mutationStrength, mutationStrength);
+            if (randomDouble(0.0, 1.0) < mutationRate) {
+                // Гауссова мутация
+                double mutation = randomDouble(-0.5, 0.5);
                 population[i].chromosome[j] += mutation;
                 
                 // Ограничиваем значения весов
@@ -173,59 +141,15 @@ void ImprovedGeneticTrainer::adaptiveMutation() {
     }
 }
 
-void ImprovedGeneticTrainer::applyGradientDescentStep(NeuralNetwork& network, 
-                                                     ImprovedIndividual& individual,
-                                                     const DataSet& trainingData) {
-    // Применяем только к лучшим особям (первые 20%)
-    static size_t applyCount = populationSize / 5;
-    
-    // Сохраняем оригинальные веса
-    std::vector<double> originalWeights = network.getWeights();
-    
-    // Устанавливаем веса из особи
-    network.setWeights(individual.chromosome);
-    
-    // Выбираем случайный пример для градиентного шага
-    if (!trainingData.empty()) {
-        size_t randomIndex = randomInt(0, trainingData.size() - 1);
-        const auto& point = trainingData.get(randomIndex);
-        const auto& features = point.getFeatures();
-        
-        Vector input(features.size());
-        for (size_t i = 0; i < features.size(); ++i) {
-            input[i] = features[i];
-        }
-        
-        Vector target(1, static_cast<double>(point.getLabel()));
-        
-        // Один шаг градиентного спуска
-        network.trainOneExample(input, target, learningRate);
-        
-        // Сохраняем улучшенные веса
-        individual.chromosome = network.getWeights();
-    }
-    
-    // Восстанавливаем оригинальные веса
-    network.setWeights(originalWeights);
-}
-
-void ImprovedGeneticTrainer::agePopulation() {
-    // Увеличиваем возраст всех особей
-    for (auto& individual : population) {
-        individual.age++;
-    }
-}
-
-std::vector<double> ImprovedGeneticTrainer::train(NeuralNetwork& network,
-                                                 const DataSet& trainingData,
-                                                 const DataSet& validationData) {
+std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
+                                         const DataSet& trainingData,
+                                         const DataSet& validationData) {
     if (trainingData.empty()) {
         throw std::invalid_argument("Обучающая выборка не может быть пустой");
     }
     
     lossHistory.clear();
     bestLossHistory.clear();
-    avgFitnessHistory.clear();
     
     // Инициализируем популяцию
     initializePopulation(network);
@@ -238,26 +162,21 @@ std::vector<double> ImprovedGeneticTrainer::train(NeuralNetwork& network,
         // Сохраняем статистику
         double bestLoss = population[0].loss;
         double avgLoss = 0.0;
-        double avgFitness = 0.0;
         
         for (const auto& ind : population) {
             avgLoss += ind.loss;
-            avgFitness += ind.fitness;
         }
         
         avgLoss /= population.size();
-        avgFitness /= population.size();
         
         lossHistory.push_back(avgLoss);
         bestLossHistory.push_back(bestLoss);
-        avgFitnessHistory.push_back(avgFitness);
         
         // Вывод прогресса каждые 20 поколений
         if (generation % 20 == 0) {
             std::cout << "Поколение " << std::setw(3) << generation 
                       << ": лучшая ошибка = " << std::fixed << std::setprecision(6) << bestLoss
-                      << ", средняя ошибка = " << avgLoss
-                      << ", средняя приспособленность = " << std::setprecision(4) << avgFitness << std::endl;
+                      << ", средняя ошибка = " << avgLoss << std::endl;
         }
         
         // Селекция
@@ -267,16 +186,7 @@ std::vector<double> ImprovedGeneticTrainer::train(NeuralNetwork& network,
         uniformCrossover();
         
         // Мутация
-        adaptiveMutation();
-        
-        // Локальный поиск для лучших особей (градиентный спуск)
-        size_t localSearchCount = std::min<size_t>(5, populationSize / 10);
-        for (size_t i = 0; i < localSearchCount; ++i) {
-            applyGradientDescentStep(network, population[i], trainingData);
-        }
-        
-        // Старение популяции
-        agePopulation();
+        simpleMutation();
         
         // Ранняя остановка, если ошибка достаточно мала
         if (bestLoss < 0.01) {
@@ -297,22 +207,21 @@ std::vector<double> ImprovedGeneticTrainer::train(NeuralNetwork& network,
     return bestLossHistory;
 }
 
-std::string ImprovedGeneticTrainer::getConfig() const {
+std::string GeneticTrainer::getConfig() const {
     std::ostringstream ss;
-    ss << "Улучшенный генетический алгоритм:\n"
+    ss << "Генетический алгоритм (упрощенный):\n"
        << "  Размер популяции: " << populationSize << "\n"
        << "  Максимальное число поколений: " << maxGenerations << "\n"
        << "  Вероятность мутации: " << mutationRate << "\n"
        << "  Вероятность скрещивания: " << crossoverRate << "\n"
        << "  Доля элитных особей: " << elitismRatio << "\n"
-       << "  Скорость обучения (локальный поиск): " << learningRate << "\n"
        << "  Текущий размер популяции: " << population.size() << "\n"
        << "  История ошибок: " << lossHistory.size() << " записей";
     
     return ss.str();
 }
 
-void ImprovedGeneticTrainer::saveState(const std::string& filename) const {
+void GeneticTrainer::saveState(const std::string& filename) const {
     std::ofstream file(filename);
     if (!file.is_open()) {
         throw std::runtime_error("Не удалось открыть файл для сохранения: " + filename);
@@ -321,13 +230,13 @@ void ImprovedGeneticTrainer::saveState(const std::string& filename) const {
     // Сохраняем параметры
     file << populationSize << " " << maxGenerations << " "
          << mutationRate << " " << crossoverRate << " " 
-         << elitismRatio << " " << learningRate << "\n";
+         << elitismRatio << "\n";
     
     // Сохраняем популяцию
     file << population.size() << "\n";
     for (const auto& ind : population) {
         file << ind.chromosome.size() << " " 
-             << ind.fitness << " " << ind.loss << " " << ind.age << "\n";
+             << ind.fitness << " " << ind.loss << "\n";
         for (double gene : ind.chromosome) {
             file << gene << " ";
         }
@@ -347,16 +256,10 @@ void ImprovedGeneticTrainer::saveState(const std::string& filename) const {
     }
     file << "\n";
     
-    file << avgFitnessHistory.size() << "\n";
-    for (double fitness : avgFitnessHistory) {
-        file << fitness << " ";
-    }
-    file << "\n";
-    
     file.close();
 }
 
-void ImprovedGeneticTrainer::loadState(const std::string& filename) {
+void GeneticTrainer::loadState(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
         throw std::runtime_error("Не удалось открыть файл для загрузки: " + filename);
@@ -364,7 +267,7 @@ void ImprovedGeneticTrainer::loadState(const std::string& filename) {
     
     // Загружаем параметры
     file >> populationSize >> maxGenerations >> mutationRate 
-         >> crossoverRate >> elitismRatio >> learningRate;
+         >> crossoverRate >> elitismRatio;
     
     // Загружаем популяцию
     size_t popSize;
@@ -376,13 +279,11 @@ void ImprovedGeneticTrainer::loadState(const std::string& filename) {
     for (size_t i = 0; i < popSize; ++i) {
         size_t chromSize;
         double fitness, loss;
-        int age;
-        file >> chromSize >> fitness >> loss >> age;
+        file >> chromSize >> fitness >> loss;
         
-        ImprovedIndividual ind(chromSize);
+        GeneticIndividual ind(chromSize);
         ind.fitness = fitness;
         ind.loss = loss;
-        ind.age = age;
         
         for (size_t j = 0; j < chromSize; ++j) {
             file >> ind.chromosome[j];
@@ -414,28 +315,22 @@ void ImprovedGeneticTrainer::loadState(const std::string& filename) {
         bestLossHistory.push_back(loss);
     }
     
-    size_t avgFitnessHistorySize;
-    file >> avgFitnessHistorySize;
-    
-    avgFitnessHistory.clear();
-    avgFitnessHistory.reserve(avgFitnessHistorySize);
-    for (size_t i = 0; i < avgFitnessHistorySize; ++i) {
-        double fitness;
-        file >> fitness;
-        avgFitnessHistory.push_back(fitness);
-    }
-    
     file.close();
 }
 
-std::vector<std::pair<std::string, double>> ImprovedGeneticTrainer::getMetrics() const {
+std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
     std::vector<std::pair<std::string, double>> metrics;
     
     if (!population.empty()) {
         metrics.emplace_back("Лучшая приспособленность", population[0].fitness);
         metrics.emplace_back("Лучшая ошибка", population[0].loss);
-        metrics.emplace_back("Средняя приспособленность", getAverageFitness());
-        metrics.emplace_back("Возраст лучшей особи", static_cast<double>(population[0].age));
+        
+        double avgFitness = 0.0;
+        for (const auto& ind : population) {
+            avgFitness += ind.fitness;
+        }
+        avgFitness /= population.size();
+        metrics.emplace_back("Средняя приспособленность", avgFitness);
     }
     
     if (!lossHistory.empty()) {
@@ -454,7 +349,7 @@ std::vector<std::pair<std::string, double>> ImprovedGeneticTrainer::getMetrics()
     return metrics;
 }
 
-ImprovedIndividual ImprovedGeneticTrainer::getBestIndividual() const {
+GeneticIndividual GeneticTrainer::getBestIndividual() const {
     if (population.empty()) {
         throw std::runtime_error("Популяция пуста");
     }
@@ -462,7 +357,7 @@ ImprovedIndividual ImprovedGeneticTrainer::getBestIndividual() const {
     return population[0];
 }
 
-double ImprovedGeneticTrainer::getBestLoss() const {
+double GeneticTrainer::getBestLoss() const {
     if (population.empty()) {
         return 0.0;
     }
@@ -470,25 +365,11 @@ double ImprovedGeneticTrainer::getBestLoss() const {
     return population[0].loss;
 }
 
-double ImprovedGeneticTrainer::getAverageFitness() const {
-    if (population.empty()) {
-        return 0.0;
-    }
-    
-    double sum = 0.0;
-    for (const auto& ind : population) {
-        sum += ind.fitness;
-    }
-    
-    return sum / population.size();
-}
-
-void ImprovedGeneticTrainer::setParameters(size_t popSize, size_t maxGen, double mutRate,
-                                          double crossRate, double eliteRatio, double lr) {
+void GeneticTrainer::setParameters(size_t popSize, size_t maxGen, double mutRate,
+                                  double crossRate, double eliteRatio) {
     populationSize = popSize;
     maxGenerations = maxGen;
     mutationRate = mutRate;
     crossoverRate = crossRate;
     elitismRatio = eliteRatio;
-    learningRate = lr;
 }

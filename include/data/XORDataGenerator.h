@@ -27,8 +27,10 @@ public:
     DataSet generateTrainData();
     
     DataSet generateTestData();
-
-    void saveToCSV(const std::string& trainPath = "data/train.csv",
+    
+    void saveToCSV(const DataSet& trainData,
+                  const DataSet& testData,
+                  const std::string& trainPath = "data/train.csv",
                   const std::string& testPath = "data/test.csv");
     
     void setTrainSize(size_t size) { trainSize = size; }

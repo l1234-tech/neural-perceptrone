@@ -5,6 +5,7 @@
 bool test_matrix();
 bool test_vector();
 bool test_activation();
+bool test_genetic_trainer();
 
 int main() {
     std::cout << "Running tests...\n";
@@ -25,6 +26,7 @@ int main() {
     RUN_TEST(test_matrix);
     RUN_TEST(test_vector);
     RUN_TEST(test_activation);
+    RUN_TEST(test_genetic_trainer);
     
     std::cout << "\nResults: " << passed << "/" << total << " tests passed\n";
     return (passed == total) ? 0 : 1;
