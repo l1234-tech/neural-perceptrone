@@ -55,15 +55,15 @@ DataSet XORDataGenerator::generateDataset(size_t size, bool isTrain) {
         // Случайно выбираем, генерировать ли точку в нижнем левом или верхнем правом квадранте
         bool lowerLeft = randomDouble(0.0, 1.0) < 0.5;
         
-        auto [x, y] = generatePoint(0); // Класс 0
+        auto [x, y] = generatePoint(0);
         int label = calculateLabel(x, y, isTrain && randomDouble(0.0, 1.0) < noiseLevel);
         
         dataset.add(DataPoint({x, y}, label));
     }
     
-    // Генерируем точки класса 1 (разные)
+    // Генерируем точки класса 1 
     for (size_t i = 0; i < class1Count; ++i) {
-        auto [x, y] = generatePoint(1); // Класс 1
+        auto [x, y] = generatePoint(1);
         int label = calculateLabel(x, y, isTrain && randomDouble(0.0, 1.0) < noiseLevel);
         
         dataset.add(DataPoint({x, y}, label));

@@ -35,7 +35,6 @@ void GeneticTrainer::initializePopulation(NeuralNetwork& network) {
     
     size_t chromosomeSize = network.getTotalParameters();
     
-    // Инициализация популяции случайными весами
     for (size_t i = 0; i < populationSize; ++i) {
         GeneticIndividual individual(chromosomeSize);
         
@@ -49,11 +48,10 @@ void GeneticTrainer::initializePopulation(NeuralNetwork& network) {
 }
 
 void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& trainingData) {
-    // Сохраняем оригинальные веса сети
     std::vector<double> originalWeights = network.getWeights();
     
     for (auto& individual : population) {
-        // Устанавливаем веса сети из хромосомы особи
+   
         network.setWeights(individual.chromosome);
         
         // Вычисляем ошибку (loss) на обучающей выборке
@@ -65,7 +63,7 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
     // Восстанавливаем оригинальные веса
     network.setWeights(originalWeights);
     
-    // Сортируем популяцию по приспособленности (лучшие first)
+    // Сортируем популяцию по приспособленности 
     std::sort(population.begin(), population.end());
 }
 
@@ -147,7 +145,6 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     
     initializePopulation(network);
     
-    // Основной цикл генетического алгоритма
     for (size_t generation = 0; generation < maxGenerations; ++generation) {
         // Оценка приспособленности
         evaluatePopulation(network, trainingData);
@@ -217,12 +214,10 @@ void GeneticTrainer::saveState(const std::string& filename) const {
         throw std::runtime_error("Не удалось открыть файл для сохранения: " + filename);
     }
     
-    // Сохраняем параметры
     file << populationSize << " " << maxGenerations << " "
          << mutationRate << " " << crossoverRate << " " 
          << elitismRatio << "\n";
     
-    // Сохраняем популяцию
     file << population.size() << "\n";
     for (const auto& ind : population) {
         file << ind.chromosome.size() << " " 
@@ -233,7 +228,6 @@ void GeneticTrainer::saveState(const std::string& filename) const {
         file << "\n";
     }
     
-    // Сохраняем историю
     file << lossHistory.size() << "\n";
     for (double loss : lossHistory) {
         file << loss << " ";
@@ -255,11 +249,9 @@ void GeneticTrainer::loadState(const std::string& filename) {
         throw std::runtime_error("Не удалось открыть файл для загрузки: " + filename);
     }
     
-    // Загружаем параметры
     file >> populationSize >> maxGenerations >> mutationRate 
          >> crossoverRate >> elitismRatio;
     
-    // Загружаем популяцию
     size_t popSize;
     file >> popSize;
     
@@ -282,7 +274,6 @@ void GeneticTrainer::loadState(const std::string& filename) {
         population.push_back(ind);
     }
     
-    // Загружаем историю
     size_t lossHistorySize;
     file >> lossHistorySize;
     

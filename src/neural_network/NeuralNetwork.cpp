@@ -26,7 +26,6 @@ Vector NeuralNetwork::forward(const Vector& input) const {
     
     Vector current = input;
     
-    // Последовательно применяем все слои
     for (const auto& layer : layers) {
         current = layer.forward(current);
     }
@@ -41,7 +40,7 @@ std::vector<Vector> NeuralNetwork::forwardPassWithCache(const Vector& input) {
     
     std::vector<Vector> activations;
     activations.reserve(layers.size() + 1);
-    activations.push_back(input);  // Входной слой
+    activations.push_back(input); 
     
     Vector current = input;
     
@@ -64,8 +63,7 @@ double NeuralNetwork::computeLoss(const Vector& output, const Vector& target) co
     for (size_t i = 0; i < output.size(); ++i) {
         double y = target[i];
         double p = output[i];
-        // Добавляем epsilon для избежания log(0)
-        // Для стабильности также ограничиваем p в диапазоне [epsilon, 1-epsilon]
+        // ограничиваем p в диапазоне [epsilon, 1-epsilon]
         p = std::max(epsilon, std::min(1.0 - epsilon, p));
         loss += - (y * std::log(p) + (1.0 - y) * std::log(1.0 - p));
     }
@@ -80,7 +78,6 @@ Vector NeuralNetwork::computeOutputGradient(const Vector& output, const Vector& 
     
     Vector gradient(output.size());
     
-    // Градиент для binary cross-entropy с сигмоидой: output - target
     for (size_t i = 0; i < output.size(); ++i) {
         gradient[i] = output[i] - target[i];
     }
@@ -89,45 +86,36 @@ Vector NeuralNetwork::computeOutputGradient(const Vector& output, const Vector& 
 }
 
 std::vector<std::vector<double>> NeuralNetwork::backward(const Vector& input, const Vector& target) {
-    // Прямой проход с сохранением активаций
+
     std::vector<Vector> activations = forwardPassWithCache(input);
-    
-    // Градиенты для каждого слоя
+
     std::vector<std::vector<double>> layerGradients(layers.size());
-    
-    // Вычисляем градиент на выходном слое
+
     Vector currentGradient = computeOutputGradient(activations.back(), target);
-    
-    // Обратное распространение через слои
+
     for (int i = static_cast<int>(layers.size()) - 1; i >= 0; --i) {
         const Layer& layer = layers[i];
         const Vector& layerInput = activations[i];
         const Vector& layerOutput = activations[i + 1];
-        
-        // Градиенты для весов и смещений этого слоя
+
         std::vector<double> gradients;
         gradients.reserve(layer.getWeightCount());
-        
-        // Градиенты для весов
+
         for (size_t neuronIdx = 0; neuronIdx < layerOutput.size(); ++neuronIdx) {
             double neuronGradient = currentGradient[neuronIdx];
-            
-            // Градиенты для весов этого нейрона
+   
             for (size_t inputIdx = 0; inputIdx < layerInput.size(); ++inputIdx) {
                 gradients.push_back(neuronGradient * layerInput[inputIdx]);
             }
-            
-            // Градиент для смещения этого нейрона
+
             gradients.push_back(neuronGradient);
         }
         
         layerGradients[i] = gradients;
-        
-        // Если не последний слой, вычисляем градиент для предыдущего слоя
+
         if (i > 0) {
             Vector nextGradient(layerInput.size(), 0.0);
-            
-            // Распространяем градиент назад через веса
+
             for (size_t neuronIdx = 0; neuronIdx < layerOutput.size(); ++neuronIdx) {
                 double neuronGradient = currentGradient[neuronIdx];
                 

@@ -5,13 +5,12 @@
 ai-project/
 ├── CMakeLists.txt              # Файл requirements
 ├── README.md                   # Документация и описание
-├── main.cpp                    # Точка входа, демонстрация
+├── main.cpp
 │
 ├── include/                    # Заголовочные файлы
 │   ├── neural_network/
 │   │   ├── NeuralNetwork.h    # Класс нейронной сети
 │   │   ├── Layer.h            # Класс слоя
-│   │   ├── Neuron.h           # Класс нейрона (не факт что нужен)
 │   │   └── Activation.h       # Функции активации
 │   │
 │   ├── trainer/
@@ -23,6 +22,7 @@ ai-project/
 │   │   ├── DataSet.h          # Структура данных
 │   │   ├── DataPoint.h        # Одна точка данных
 │   │   └── DataLoader.h       # Загрузка из файла
+│   │   └── XORDataGenerator.h       # создание точек
 │   │
 │   └── utils/
 │       ├── Matrix.h           # Матричные операции
@@ -44,6 +44,7 @@ ai-project/
 │   │   ├── DataSet.cpp
 │   │   ├── DataPoint.cpp
 │   │   └── DataLoader.cpp
+│   │   └── XORDataGenerator.cpp
 │   │
 │   └── utils/
 │       ├── Matrix.cpp
@@ -51,7 +52,6 @@ ai-project/
 │       └── Random.cpp
 │
 ├── tests/
-│   ├── test_neural_network.cpp
 │   ├── test_genetic_trainer.cpp
 │   ├── test_activation.cpp
 │   ├── test_vector.cpp
@@ -61,3 +61,5 @@ ai-project/
 ├── data/                       # Данные для обучения
 │   ├── train.csv              # Обучающая выборка
 │   ├── test.csv               # Тестовая выборка
+├── .sourcecraft/                       # Данные для обучения
+│   ├── ci.yaml              # ci/cd для запуска тестов при пуше в майн или пул реквест

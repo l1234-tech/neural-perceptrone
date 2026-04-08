@@ -7,8 +7,6 @@
 #include <memory>
 #include <string>
 #include <algorithm>
-
-// Простая особь для генетического алгоритма
 struct GeneticIndividual {
     std::vector<double> chromosome;  // Веса нейронной сети
     double fitness;                  // Приспособленность (1 / (loss + epsilon))
@@ -17,7 +15,6 @@ struct GeneticIndividual {
     GeneticIndividual(size_t chromosomeSize = 0) 
         : chromosome(chromosomeSize, 0.0), fitness(0.0), loss(0.0) {}
     
-    // Оператор сравнения для сортировки (лучшие особи first)
     bool operator<(const GeneticIndividual& other) const {
         return fitness > other.fitness; // Сортируем по убыванию приспособленности
     }
@@ -37,7 +34,6 @@ private:
     std::vector<double> lossHistory;
     std::vector<double> bestLossHistory;
     
-    // Вспомогательные методы
     void initializePopulation(NeuralNetwork& network);
     void evaluatePopulation(NeuralNetwork& network, const DataSet& trainingData);
     void tournamentSelection(size_t tournamentSize = 3);
@@ -52,28 +48,22 @@ public:
                    double crossoverRate = 0.8,
                    double elitismRatio = 0.1);
     
-    // Обучить нейронную сеть (реализация интерфейса ITrainer)
     std::vector<double> train(NeuralNetwork& network, 
                              const DataSet& trainingData,
                              const DataSet& validationData = DataSet()) override;
     
-    // Получить текущую конфигурацию
     std::string getConfig() const override;
-    
-    // Сохранить/загрузить состояние
+
     void saveState(const std::string& filename) const override;
     void loadState(const std::string& filename) override;
-    
-    // Получить метрики обучения
+
     std::vector<std::pair<std::string, double>> getMetrics() const override;
-    
-    // Дополнительные методы
+
     GeneticIndividual getBestIndividual() const;
     double getBestLoss() const;
     const std::vector<double>& getLossHistory() const { return lossHistory; }
     const std::vector<double>& getBestLossHistory() const { return bestLossHistory; }
-    
-    // Настройка параметров
+
     void setParameters(size_t popSize, size_t maxGen, double mutRate, 
                       double crossRate, double eliteRatio);
 };
