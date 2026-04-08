@@ -59,9 +59,7 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
         // Вычисляем ошибку (loss) на обучающей выборке
         individual.loss = network.computeLoss(trainingData);
         
-        // Приспособленность обратно пропорциональна ошибке
-        // Добавляем маленькое значение, чтобы избежать деления на ноль
-        individual.fitness = 1.0 / (individual.loss + 1e-8);
+        individual.fitness = exp(-individual.loss * 10.0);
     }
     
     // Восстанавливаем оригинальные веса
@@ -129,8 +127,15 @@ void GeneticTrainer::simpleMutation() {
     for (size_t i = 0; i < population.size(); ++i) {
         for (size_t j = 0; j < population[i].chromosome.size(); ++j) {
             if (randomDouble(0.0, 1.0) < mutationRate) {
-                // Гауссова мутация
-                double mutation = randomDouble(-0.5, 0.5);
+                // Гауссова мутация с уменьшающейся силой для лучших особей
+                double mutationStrength = 0.5;
+                
+                // Уменьшаем силу мутации для лучших особей (первые 20%)
+                if (i < population.size() * 0.2) {
+                    mutationStrength *= 0.5;
+                }
+                
+                double mutation = randomDouble(-mutationStrength, mutationStrength);
                 population[i].chromosome[j] += mutation;
                 
                 // Ограничиваем значения весов
@@ -176,7 +181,8 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         if (generation % 20 == 0) {
             std::cout << "Поколение " << std::setw(3) << generation 
                       << ": лучшая ошибка = " << std::fixed << std::setprecision(6) << bestLoss
-                      << ", средняя ошибка = " << avgLoss << std::endl;
+                      << ", средняя ошибка = " << avgLoss 
+                      << ", лучшая fitness = " << std::setprecision(4) << population[0].fitness << std::endl;
         }
         
         // Селекция
@@ -189,8 +195,8 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         simpleMutation();
         
         // Ранняя остановка, если ошибка достаточно мала
-        if (bestLoss < 0.01) {
-            std::cout << "Ранняя остановка: достигнута достаточная точность" << std::endl;
+        if (bestLoss < 0.05) {  // Увеличили порог для более ранней остановки
+            std::cout << "Ранняя остановка: достигнута достаточная точность (ошибка < 0.05)" << std::endl;
             break;
         }
     }

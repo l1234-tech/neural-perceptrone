@@ -263,11 +263,19 @@ double NeuralNetwork::computeLoss(const DataSet& dataset) const {
             input[j] = features[j];
         }
         
-        // Целевой вектор (one-hot encoding для многоклассовой классификации)
+        // Целевой вектор
         Vector target(architecture.back(), 0.0);
         int label = point.getLabel();
-        if (label >= 0 && static_cast<size_t>(label) < target.size()) {
-            target[label] = 1.0;
+        
+        // ИСПРАВЛЕНИЕ: Для бинарной классификации с одним выходным нейроном
+        if (architecture.back() == 1) {
+            // Один выходной нейрон: target[0] = label (0.0 или 1.0)
+            target[0] = static_cast<double>(label);
+        } else {
+            // Многоклассовая классификация: one-hot encoding
+            if (label >= 0 && static_cast<size_t>(label) < target.size()) {
+                target[label] = 1.0;
+            }
         }
         
         // Прямой проход и вычисление ошибки
