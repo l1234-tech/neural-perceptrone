@@ -1,4 +1,3 @@
-version: 1
 name: Project Tests
 description: Запуск тестой при пуше в репу
 
