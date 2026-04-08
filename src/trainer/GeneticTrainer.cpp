@@ -39,9 +39,11 @@ void GeneticTrainer::initializePopulation(NeuralNetwork& network) {
     for (size_t i = 0; i < populationSize; ++i) {
         GeneticIndividual individual(chromosomeSize);
         
-        // Инициализация случайными весами в диапазоне [-1, 1]
+        // Инициализация случайными весами в диапазоне [-0.5, 0.5]
+        // Более узкий диапазон помогает быстрее сходиться
+        double range = 0.5;
         for (size_t j = 0; j < chromosomeSize; ++j) {
-            individual.chromosome[j] = randomDouble(-1.0, 1.0);
+            individual.chromosome[j] = randomDouble(-range, range);
         }
         
         population.push_back(individual);
@@ -59,7 +61,9 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
         // Вычисляем ошибку (loss) на обучающей выборке
         individual.loss = network.computeLoss(trainingData);
         
-        individual.fitness = exp(-individual.loss * 10.0);
+        // Приспособленность обратно пропорциональна ошибке
+        // Добавляем маленькое значение, чтобы избежать деления на ноль
+        individual.fitness = 1.0 / (individual.loss + 1e-8);
     }
     
     // Восстанавливаем оригинальные веса
@@ -123,24 +127,20 @@ void GeneticTrainer::uniformCrossover() {
 }
 
 void GeneticTrainer::simpleMutation() {
-    // Простая мутация с фиксированной вероятностью
+    // Улучшенная мутация с адаптивным размером шага
     for (size_t i = 0; i < population.size(); ++i) {
         for (size_t j = 0; j < population[i].chromosome.size(); ++j) {
             if (randomDouble(0.0, 1.0) < mutationRate) {
-                // Гауссова мутация с уменьшающейся силой для лучших особей
-                double mutationStrength = 0.5;
-                
-                // Уменьшаем силу мутации для лучших особей (первые 20%)
-                if (i < population.size() * 0.2) {
-                    mutationStrength *= 0.5;
-                }
-                
-                double mutation = randomDouble(-mutationStrength, mutationStrength);
+                // Адаптивная мутация: размер шага зависит от текущего значения
+                // Меньшие шаги для значений близких к 0, большие для значений далеких от 0
+                double currentValue = population[i].chromosome[j];
+                double mutationScale = 0.1 * (1.0 + std::abs(currentValue));
+                double mutation = randomDouble(-mutationScale, mutationScale);
                 population[i].chromosome[j] += mutation;
                 
                 // Ограничиваем значения весов
-                if (population[i].chromosome[j] > 2.0) population[i].chromosome[j] = 2.0;
-                if (population[i].chromosome[j] < -2.0) population[i].chromosome[j] = -2.0;
+                if (population[i].chromosome[j] > 5.0) population[i].chromosome[j] = 5.0;
+                if (population[i].chromosome[j] < -5.0) population[i].chromosome[j] = -5.0;
             }
         }
     }
@@ -195,8 +195,9 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         simpleMutation();
         
         // Ранняя остановка, если ошибка достаточно мала
-        if (bestLoss < 0.05) {  // Увеличили порог для более ранней остановки
-            std::cout << "Ранняя остановка: достигнута достаточная точность (ошибка < 0.05)" << std::endl;
+        // Для binary cross-entropy loss значение 0.05 соответствует хорошей точности
+        if (bestLoss < 0.05) {
+            std::cout << "Ранняя остановка: достигнута достаточная точность (loss < 0.05)" << std::endl;
             break;
         }
     }

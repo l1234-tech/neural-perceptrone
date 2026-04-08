@@ -59,11 +59,16 @@ double NeuralNetwork::computeLoss(const Vector& output, const Vector& target) co
         throw std::invalid_argument("Размеры выходного вектора и целевого вектора не совпадают");
     }
     
-    // Среднеквадратичная ошибка (MSE)
+    // Binary cross-entropy loss (лучше подходит для бинарной классификации)
+    const double epsilon = 1e-8;  // Для стабильности вычислений логарифма
     double loss = 0.0;
     for (size_t i = 0; i < output.size(); ++i) {
-        double error = output[i] - target[i];
-        loss += error * error;
+        double y = target[i];
+        double p = output[i];
+        // Добавляем epsilon для избежания log(0)
+        // Для стабильности также ограничиваем p в диапазоне [epsilon, 1-epsilon]
+        p = std::max(epsilon, std::min(1.0 - epsilon, p));
+        loss += - (y * std::log(p) + (1.0 - y) * std::log(1.0 - p));
     }
     
     return loss / output.size();
@@ -76,13 +81,10 @@ Vector NeuralNetwork::computeOutputGradient(const Vector& output, const Vector& 
     
     Vector gradient(output.size());
     
-    // Градиент для MSE: 2 * (output - target) / n
-    // Для сигмоиды: gradient * output * (1 - output) (производная сигмоиды)
+    // Градиент для binary cross-entropy с сигмоидой: output - target
+    // Производная сигмоиды уже учтена в этой простой формуле
     for (size_t i = 0; i < output.size(); ++i) {
-        double error = output[i] - target[i];
-        // Учитываем производную сигмоиды: output * (1 - output)
-        double sigmoidDerivative = output[i] * (1.0 - output[i]);
-        gradient[i] = 2.0 * error * sigmoidDerivative / output.size();
+        gradient[i] = output[i] - target[i];
     }
     
     return gradient;
@@ -267,12 +269,12 @@ double NeuralNetwork::computeLoss(const DataSet& dataset) const {
         Vector target(architecture.back(), 0.0);
         int label = point.getLabel();
         
-        // ИСПРАВЛЕНИЕ: Для бинарной классификации с одним выходным нейроном
         if (architecture.back() == 1) {
-            // Один выходной нейрон: target[0] = label (0.0 или 1.0)
+            // Бинарная классификация с одним выходом
+            // label должен быть 0 или 1
             target[0] = static_cast<double>(label);
         } else {
-            // Многоклассовая классификация: one-hot encoding
+            // Многоклассовая классификация (one-hot encoding)
             if (label >= 0 && static_cast<size_t>(label) < target.size()) {
                 target[label] = 1.0;
             }
