@@ -7,6 +7,7 @@
 #include <sstream>
 #include <cmath>
 #include <iostream>
+#include <filesystem>
 
 void Visualizer::saveDatasetToCSV(const DataSet& dataset, const std::string& filename) {
     std::ofstream file(filename);
@@ -15,8 +16,8 @@ void Visualizer::saveDatasetToCSV(const DataSet& dataset, const std::string& fil
         return;
     }
     
-    // Заголовок CSV
-    file << "feature_0,feature_1,label" << std::endl;
+    // Заголовок CSV в формате x1,x2,label (совместимость с существующими данными)
+    file << "x1,x2,label" << std::endl;
     
     // Данные
     for (size_t i = 0; i < dataset.size(); ++i) {
@@ -45,7 +46,7 @@ void Visualizer::savePredictionsToCSV(const NeuralNetwork& network,
     }
     
     // Заголовок CSV
-    file << "feature_0,feature_1,true_label,predicted_label,confidence" << std::endl;
+    file << "x1,x2,true_label,predicted_label,confidence" << std::endl;
     
     int correct = 0;
     
@@ -114,7 +115,7 @@ void Visualizer::saveDecisionBoundary(const NeuralNetwork& network,
     }
     
     // Заголовок CSV
-    file << "x,y,prediction" << std::endl;
+    file << "x1,x2,prediction" << std::endl;
     
     double xStep = (xMax - xMin) / (gridSize - 1);
     double yStep = (yMax - yMin) / (gridSize - 1);

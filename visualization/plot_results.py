@@ -27,7 +27,12 @@ def plot_dataset(data_file, title="Датасет"):
     
     try:
         data = pd.read_csv(data_file)
-        if 'feature_0' not in data.columns or 'feature_1' not in data.columns:
+        # Проверяем разные возможные названия столбцов
+        if 'x1' in data.columns and 'x2' in data.columns:
+            x_col, y_col = 'x1', 'x2'
+        elif 'feature_0' in data.columns and 'feature_1' in data.columns:
+            x_col, y_col = 'feature_0', 'feature_1'
+        else:
             print(f"Файл {data_file} не содержит нужных столбцов")
             return None
         
@@ -35,19 +40,19 @@ def plot_dataset(data_file, title="Датасет"):
         
         if 'label' in data.columns:
             # Цветовая кодировка по классам
-            scatter = ax.scatter(data['feature_0'], data['feature_1'], 
+            scatter = ax.scatter(data[x_col], data[y_col], 
                                c=data['label'], cmap='coolwarm', 
                                edgecolors='k', s=50, alpha=0.7)
             plt.colorbar(scatter, label='Класс')
             ax.set_title(f'{title} (размер: {len(data)} точек)')
         else:
             # Только точки без меток
-            ax.scatter(data['feature_0'], data['feature_1'], 
+            ax.scatter(data[x_col], data[y_col], 
                       c='blue', edgecolors='k', s=50, alpha=0.7)
             ax.set_title(f'{title} (без меток, размер: {len(data)} точек)')
         
-        ax.set_xlabel('Признак 0')
-        ax.set_ylabel('Признак 1')
+        ax.set_xlabel('Признак 0 (x1)')
+        ax.set_ylabel('Признак 1 (x2)')
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
@@ -65,8 +70,17 @@ def plot_predictions(predictions_file, title="Предсказания моде�
     
     try:
         data = pd.read_csv(predictions_file)
-        required_cols = ['feature_0', 'feature_1', 'true_label', 'predicted_label']
         
+        # Определяем названия столбцов
+        if 'x1' in data.columns and 'x2' in data.columns:
+            x_col, y_col = 'x1', 'x2'
+        elif 'feature_0' in data.columns and 'feature_1' in data.columns:
+            x_col, y_col = 'feature_0', 'feature_1'
+        else:
+            print(f"Файл {predictions_file} не содержит нужных столбцов")
+            return None
+        
+        required_cols = ['true_label', 'predicted_label']
         if not all(col in data.columns for col in required_cols):
             print(f"Файл {predictions_file} не содержит всех нужных столбцов")
             return None
@@ -74,20 +88,20 @@ def plot_predictions(predictions_file, title="Предсказания моде�
         fig, axes = plt.subplots(1, 2, figsize=(16, 8))
         
         # Истинные метки
-        scatter1 = axes[0].scatter(data['feature_0'], data['feature_1'], 
+        scatter1 = axes[0].scatter(data[x_col], data[y_col], 
                                   c=data['true_label'], cmap='coolwarm',
                                   edgecolors='k', s=50, alpha=0.7)
-        axes[0].set_xlabel('Признак 0')
-        axes[0].set_ylabel('Признак 1')
+        axes[0].set_xlabel('Признак 0 (x1)')
+        axes[0].set_ylabel('Признак 1 (x2)')
         axes[0].set_title('Истинные метки')
         axes[0].grid(True, alpha=0.3)
         
         # Предсказанные метки
-        scatter2 = axes[1].scatter(data['feature_0'], data['feature_1'], 
+        scatter2 = axes[1].scatter(data[x_col], data[y_col], 
                                   c=data['predicted_label'], cmap='coolwarm',
                                   edgecolors='k', s=50, alpha=0.7)
-        axes[1].set_xlabel('Признак 0')
-        axes[1].set_ylabel('Признак 1')
+        axes[1].set_xlabel('Признак 0 (x1)')
+        axes[1].set_ylabel('Признак 1 (x2)')
         axes[1].set_title('Предсказанные метки')
         axes[1].grid(True, alpha=0.3)
         
@@ -155,22 +169,27 @@ def plot_decision_boundary(boundary_file, title="Граница решения")
     
     try:
         data = pd.read_csv(boundary_file)
-        if 'x' not in data.columns or 'y' not in data.columns or 'prediction' not in data.columns:
+        
+        # Определяем названия столбцов
+        if 'x1' in data.columns and 'x2' in data.columns:
+            x_col, y_col = 'x1', 'x2'
+        elif 'x' in data.columns and 'y' in data.columns:
+            x_col, y_col = 'x', 'y'
+        else:
             print(f"Файл {boundary_file} не содержит нужных столбцов")
             return None
         
-        # Определяем размер сетки
-        x_unique = data['x'].unique()
-        y_unique = data['y'].unique()
-        grid_size = int(np.sqrt(len(data)))
-        
-        if len(x_unique) != grid_size or len(y_unique) != grid_size:
-            print(f"Некорректный формат данных границы решения")
+        if 'prediction' not in data.columns:
+            print(f"Файл {boundary_file} не содержит столбца prediction")
             return None
         
+        # Определяем размер сетки
+        x_unique = data[x_col].unique()
+        grid_size = len(x_unique)
+        
         # Преобразуем в матрицу для contourf
-        x_grid = data['x'].values.reshape(grid_size, grid_size)
-        y_grid = data['y'].values.reshape(grid_size, grid_size)
+        x_grid = data[x_col].values.reshape(grid_size, grid_size)
+        y_grid = data[y_col].values.reshape(grid_size, grid_size)
         z_grid = data['prediction'].values.reshape(grid_size, grid_size)
         
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -182,8 +201,8 @@ def plot_decision_boundary(boundary_file, title="Граница решения")
         # Контуры
         ax.contour(x_grid, y_grid, z_grid, levels=[0.5], colors='black', linewidths=2)
         
-        ax.set_xlabel('Признак 0')
-        ax.set_ylabel('Признак 1')
+        ax.set_xlabel('Признак 0 (x1)')
+        ax.set_ylabel('Признак 1 (x2)')
         ax.set_title(f'{title} ({grid_size}x{grid_size} точек)')
         ax.grid(True, alpha=0.3)
         
@@ -260,18 +279,28 @@ def main():
     # Настройка стиля графиков
     setup_plot_style()
     
-    # Список доступных файлов
+    # Определяем директорию, где находится скрипт
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Список доступных файлов в директории скрипта
     available_files = []
-    for file in os.listdir('.'):
+    for file in os.listdir(script_dir):
         if file.endswith('.csv') or file.endswith('.txt'):
             available_files.append(file)
     
     if not available_files:
-        print("В текущей папке не найдено файлов для визуализации")
+        print(f"В папке {script_dir} не найдено файлов для визуализации")
         print("Запустите сначала программу на C++ для генерации данных")
+        print("\nОжидаемые файлы:")
+        print("  - train_data.csv")
+        print("  - test_data.csv")
+        print("  - test_predictions.csv")
+        print("  - training_history.csv")
+        print("  - decision_boundary.csv")
+        print("  - test_report.txt")
         return
     
-    print("Найдены файлы:")
+    print(f"Найдены файлы в {script_dir}:")
     for i, file in enumerate(available_files, 1):
         print(f"  {i}. {file}")
     
@@ -281,54 +310,60 @@ def main():
     # 1. Обучающие данные
     train_files = [f for f in available_files if 'train' in f.lower() and f.endswith('.csv')]
     for train_file in train_files:
-        fig = plot_dataset(train_file, "Обучающая выборка")
+        filepath = os.path.join(script_dir, train_file)
+        fig = plot_dataset(filepath, "Обучающая выборка")
         if fig:
             figures.append((fig, f"train_{train_file}"))
     
     # 2. Тестовые данные
     test_files = [f for f in available_files if 'test' in f.lower() and f.endswith('.csv') and 'prediction' not in f.lower()]
     for test_file in test_files:
-        fig = plot_dataset(test_file, "Тестовая выборка")
+        filepath = os.path.join(script_dir, test_file)
+        fig = plot_dataset(filepath, "Тестовая выборка")
         if fig:
             figures.append((fig, f"test_{test_file}"))
     
     # 3. Предсказания
     pred_files = [f for f in available_files if 'prediction' in f.lower() and f.endswith('.csv')]
     for pred_file in pred_files:
-        fig = plot_predictions(pred_file, "Предсказания модели")
+        filepath = os.path.join(script_dir, pred_file)
+        fig = plot_predictions(filepath, "Предсказания модели")
         if fig:
             figures.append((fig, f"predictions_{pred_file}"))
         
         # Матрица ошибок из предсказаний
-        cm_fig = plot_confusion_matrix_from_predictions(pred_file, "Матрица ошибок")
+        cm_fig = plot_confusion_matrix_from_predictions(filepath, "Матрица ошибок")
         if cm_fig:
             figures.append((cm_fig, f"confusion_matrix_{pred_file}"))
     
     # 4. История обучения
     history_files = [f for f in available_files if 'history' in f.lower() and f.endswith('.csv')]
     for history_file in history_files:
-        fig = plot_training_history(history_file, "История обучения")
+        filepath = os.path.join(script_dir, history_file)
+        fig = plot_training_history(filepath, "История обучения")
         if fig:
             figures.append((fig, f"history_{history_file}"))
     
     # 5. Граница решения
     boundary_files = [f for f in available_files if 'boundary' in f.lower() and f.endswith('.csv')]
     for boundary_file in boundary_files:
-        fig = plot_decision_boundary(boundary_file, "Граница решения")
+        filepath = os.path.join(script_dir, boundary_file)
+        fig = plot_decision_boundary(filepath, "Граница решения")
         if fig:
             figures.append((fig, f"boundary_{boundary_file}"))
     
     # 6. Отчеты
     report_files = [f for f in available_files if f.endswith('.txt')]
     for report_file in report_files:
-        display_report(report_file)
+        filepath = os.path.join(script_dir, report_file)
+        display_report(filepath)
     
     # Сохранение графиков
     if figures:
         print(f"\nСоздано {len(figures)} графиков")
         
         # Создаем папку для сохранения
-        output_dir = "plots"
+        output_dir = os.path.join(script_dir, "plots")
         os.makedirs(output_dir, exist_ok=True)
         
         for i, (fig, name) in enumerate(figures, 1):

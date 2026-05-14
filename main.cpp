@@ -231,7 +231,7 @@ int main() {
         
         system("chcp 65001 > nul");
         
-        bool useExistingFiles = false;  
+        bool useExistingFiles = true;  // Используем существующие файлы
         auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
         
         // Сохраняем исходные данные для визуализации
