@@ -11,6 +11,7 @@ add_library(nn_lib
     src/utils/Matrix.cpp
     src/utils/Vector.cpp
     src/utils/Random.cpp
+    src/utils/Visualizer.cpp
     src/data/DataPoint.cpp
     src/data/DataSet.cpp
     src/data/DataLoader.cpp

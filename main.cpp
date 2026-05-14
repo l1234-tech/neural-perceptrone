@@ -3,6 +3,7 @@
 #include "data/DataLoader.h"
 #include "data/XORDataGenerator.h"
 #include "utils/Random.h"
+#include "utils/Visualizer.h"
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -64,7 +65,7 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
     return {trainData, testData};
 }
 
-NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
+NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData, std::vector<double>& lossHistory) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ");
     
     NeuralNetwork network({2, 8, 4, 1}); 
@@ -85,7 +86,7 @@ NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     std::cout << "\nНачало обучения...\n";
     auto startTime = std::chrono::steady_clock::now();
     
-    auto lossHistory = trainer.train(network, trainData, testData);
+    lossHistory = trainer.train(network, trainData, testData);
     
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -180,6 +181,48 @@ void testModel(const NeuralNetwork& network, const DataSet& testData) {
         std::cout << "  False Negatives: " << falseNegatives << "\n";
     }
     
+    // Сохранение данных для визуализации
+    std::cout << "\nСохранение данных для визуализации...\n";
+    
+    // Создаем папку для результатов
+    std::filesystem::create_directories("visualization");
+    
+    // Сохраняем тестовые данные с предсказаниями
+    Visualizer::savePredictionsToCSV(network, testData, "visualization/test_predictions.csv");
+    
+    // Сохраняем отчет о тестировании
+    Visualizer::saveTestReport(network, testData, "visualization/test_report.txt");
+    
+    // Сохраняем границу решения (для 2D данных)
+    if (testData.size() > 0) {
+        const auto& firstPoint = testData.get(0);
+        if (firstPoint.getFeatures().size() == 2) {
+            // Определяем границы по данным
+            double xMin = 0.0, xMax = 1.0, yMin = 0.0, yMax = 1.0;
+            
+            // Ищем фактические границы в данных
+            for (size_t i = 0; i < testData.size(); ++i) {
+                const auto& point = testData.get(i);
+                const auto& features = point.getFeatures();
+                if (features.size() >= 2) {
+                    xMin = std::min(xMin, features[0]);
+                    xMax = std::max(xMax, features[0]);
+                    yMin = std::min(yMin, features[1]);
+                    yMax = std::max(yMax, features[1]);
+                }
+            }
+            
+            // Добавляем отступы
+            xMin -= 0.1; xMax += 0.1;
+            yMin -= 0.1; yMax += 0.1;
+            
+            Visualizer::saveDecisionBoundary(network, xMin, xMax, yMin, yMax, 
+                                            50, "visualization/decision_boundary.csv");
+        }
+    }
+    
+    std::cout << "\nДанные для визуализации сохранены в папке 'visualization/'\n";
+    std::cout << "Для просмотра графиков запустите: python visualization/plot_results.py\n";
 }
 
 int main() {
@@ -191,7 +234,18 @@ int main() {
         bool useExistingFiles = false;  
         auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
         
-        NeuralNetwork model = trainModel(trainData, testData);
+        // Сохраняем исходные данные для визуализации
+        std::filesystem::create_directories("visualization");
+        Visualizer::saveDatasetToCSV(trainData, "visualization/train_data.csv");
+        Visualizer::saveDatasetToCSV(testData, "visualization/test_data.csv");
+        
+        std::vector<double> lossHistory;
+        NeuralNetwork model = trainModel(trainData, testData, lossHistory);
+        
+        // Сохраняем историю обучения
+        if (!lossHistory.empty()) {
+            Visualizer::saveTrainingHistoryToCSV(lossHistory, "visualization/training_history.csv");
+        }
         
         testModel(model, testData);
         
