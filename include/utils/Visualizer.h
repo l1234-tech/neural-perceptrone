@@ -17,6 +17,11 @@ public:
                                     const DataSet& dataset, 
                                     const std::string& filename);
     
+    // Сохранить предсказания модели в папку data (аналогично train.csv)
+    static void savePredictionsToDataCSV(const NeuralNetwork& network,
+                                        const DataSet& dataset,
+                                        const std::string& filename);
+    
     // Сохранить историю обучения (loss) в CSV файл
     static void saveTrainingHistoryToCSV(const std::vector<double>& lossHistory,
                                         const std::string& filename);

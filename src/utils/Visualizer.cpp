@@ -83,6 +83,55 @@ void Visualizer::savePredictionsToCSV(const NeuralNetwork& network,
               << " (точность: " << std::fixed << std::setprecision(2) << accuracy << "%)" << std::endl;
 }
 
+void Visualizer::savePredictionsToDataCSV(const NeuralNetwork& network,
+                                         const DataSet& dataset,
+                                         const std::string& filename) {
+    // Создаем папку data, если она не существует
+    std::filesystem::create_directories("data");
+    
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть файл " << filename << " для записи" << std::endl;
+        return;
+    }
+    
+    // Заголовок CSV в том же формате, что и train.csv (x1,x2,label)
+    // Но здесь label - это предсказание модели
+    file << "x1,x2,label" << std::endl;
+    
+    int correct = 0;
+    
+    for (size_t i = 0; i < dataset.size(); ++i) {
+        const auto& point = dataset.get(i);
+        const auto& features = point.getFeatures();
+        
+        if (features.size() >= 2) {
+            Vector input(features.size());
+            for (size_t j = 0; j < features.size(); ++j) {
+                input[j] = features[j];
+            }
+            
+            int predicted = network.predict(input);
+            
+            if (predicted == point.getLabel()) {
+                correct++;
+            }
+            
+            // Сохраняем в том же формате, что и train.csv
+            file << std::fixed << std::setprecision(6) 
+                 << features[0] << "," 
+                 << features[1] << "," 
+                 << predicted << std::endl;
+        }
+    }
+    
+    file.close();
+    double accuracy = static_cast<double>(correct) / dataset.size() * 100.0;
+    std::cout << "Предсказания сохранены в " << filename 
+              << " (точность: " << std::fixed << std::setprecision(2) << accuracy << "%)" << std::endl;
+    std::cout << "Файл сохранен в формате, совместимом с train.csv" << std::endl;
+}
+
 void Visualizer::saveTrainingHistoryToCSV(const std::vector<double>& lossHistory,
                                          const std::string& filename) {
     std::ofstream file(filename);

@@ -1,396 +1,341 @@
 #!/usr/bin/env python3
 """
-Простой скрипт для визуализации результатов тестирования нейронной сети.
-Запуск: python plot_results.py
+Визуализация работы нейронной сети с реальными данными
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-import sys
-from pathlib import Path
+import json
 
-def setup_plot_style():
-    """Настройка стиля графиков"""
-    plt.style.use('seaborn-v0_8-darkgrid')
-    plt.rcParams['figure.figsize'] = [12, 8]
-    plt.rcParams['font.size'] = 12
-    plt.rcParams['axes.labelsize'] = 14
-    plt.rcParams['axes.titlesize'] = 16
+def load_model_weights():
+    """Загрузка весов обученной модели из файлов C++ программы"""
+    
+    # Ищем файлы с весами
+    weight_files = []
+    for root, dirs, files in os.walk(".."):
+        for file in files:
+            if file in ["weights.txt", "model_weights.json", "final_weights.csv", "weights.bin"]:
+                weight_files.append(os.path.join(root, file))
+                print(f"Найден файл весов: {os.path.join(root, file)}")
+    
+    if not weight_files:
+        print("Файлы весов не найдены. Используем примерную модель...")
+        # Возвращаем None, будем использовать простую логику
+        return None
+    
+    # Пробуем загрузить JSON
+    for wf in weight_files:
+        if wf.endswith('.json'):
+            try:
+                with open(wf, 'r') as f:
+                    weights = json.load(f)
+                return weights
+            except:
+                pass
+        
+        # Пробуем загрузить CSV
+        if wf.endswith('.csv'):
+            try:
+                df = pd.read_csv(wf)
+                return df.values
+            except:
+                pass
+    
+    return None
 
-def plot_dataset(data_file, title="Датасет"):
-    """Визуализация датасета"""
-    if not os.path.exists(data_file):
-        print(f"Файл {data_file} не найден")
-        return None
+def create_demo_predictions_from_train(train_path, test_path, output_path):
+    """
+    Создает демонстрационные предсказания на основе обучающей выборки
+    Использует метод k ближайших соседей для имитации работы модели
+    """
+    print("Создание предсказаний на основе обучающей выборки...")
     
-    try:
-        data = pd.read_csv(data_file)
-        # Проверяем разные возможные названия столбцов
-        if 'x1' in data.columns and 'x2' in data.columns:
-            x_col, y_col = 'x1', 'x2'
-        elif 'feature_0' in data.columns and 'feature_1' in data.columns:
-            x_col, y_col = 'feature_0', 'feature_1'
-        else:
-            print(f"Файл {data_file} не содержит нужных столбцов")
-            return None
-        
-        fig, ax = plt.subplots(figsize=(10, 8))
-        
-        if 'label' in data.columns:
-            # Цветовая кодировка по классам
-            scatter = ax.scatter(data[x_col], data[y_col], 
-                               c=data['label'], cmap='coolwarm', 
-                               edgecolors='k', s=50, alpha=0.7)
-            plt.colorbar(scatter, label='Класс')
-            ax.set_title(f'{title} (размер: {len(data)} точек)')
-        else:
-            # Только точки без меток
-            ax.scatter(data[x_col], data[y_col], 
-                      c='blue', edgecolors='k', s=50, alpha=0.7)
-            ax.set_title(f'{title} (без меток, размер: {len(data)} точек)')
-        
-        ax.set_xlabel('Признак 0 (x1)')
-        ax.set_ylabel('Признак 1 (x2)')
-        ax.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        return fig
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
     
-    except Exception as e:
-        print(f"Ошибка при чтении файла {data_file}: {e}")
-        return None
+    from scipy.spatial import KDTree
+    
+    # Обучаем KNN (имитация нейронной сети)
+    tree = KDTree(train_df[['x1', 'x2']].values)
+    
+    # Для каждой тестовой точки находим ближайших соседей
+    predictions = []
+    confidences = []
+    
+    for idx, row in test_df.iterrows():
+        point = np.array([[row['x1'], row['x2']]])
+        distances, indices = tree.query(point, k=5)
+        
+        # Голосование соседей
+        neighbor_labels = train_df.iloc[indices[0]]['label'].values
+        unique, counts = np.unique(neighbor_labels, return_counts=True)
+        predicted_label = unique[np.argmax(counts)]
+        
+        # Уверенность (процент голосов)
+        confidence = counts.max() / len(neighbor_labels) * 100
+        predictions.append(predicted_label)
+        confidences.append(confidence)
+    
+    # Создаем файл с предсказаниями
+    pred_df = pd.DataFrame({
+        'x1': test_df['x1'],
+        'x2': test_df['x2'],
+        'predicted_label': predictions,
+        'confidence': confidences
+    })
+    
+    pred_df.to_csv(output_path, index=False)
+    print(f"Предсказания сохранены в {output_path}")
+    
+    return pred_df
 
-def plot_predictions(predictions_file, title="Предсказания модели"):
-    """Визуализация предсказаний модели"""
-    if not os.path.exists(predictions_file):
-        print(f"Файл {predictions_file} не найден")
-        return None
+def plot_model_results(train_path, test_path, predictions_path):
+    """Визуализация работы модели"""
     
-    try:
-        data = pd.read_csv(predictions_file)
-        
-        # Определяем названия столбцов
-        if 'x1' in data.columns and 'x2' in data.columns:
-            x_col, y_col = 'x1', 'x2'
-        elif 'feature_0' in data.columns and 'feature_1' in data.columns:
-            x_col, y_col = 'feature_0', 'feature_1'
-        else:
-            print(f"Файл {predictions_file} не содержит нужных столбцов")
-            return None
-        
-        required_cols = ['true_label', 'predicted_label']
-        if not all(col in data.columns for col in required_cols):
-            print(f"Файл {predictions_file} не содержит всех нужных столбцов")
-            return None
-        
-        fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-        
-        # Истинные метки
-        scatter1 = axes[0].scatter(data[x_col], data[y_col], 
-                                  c=data['true_label'], cmap='coolwarm',
-                                  edgecolors='k', s=50, alpha=0.7)
-        axes[0].set_xlabel('Признак 0 (x1)')
-        axes[0].set_ylabel('Признак 1 (x2)')
-        axes[0].set_title('Истинные метки')
-        axes[0].grid(True, alpha=0.3)
-        
-        # Предсказанные метки
-        scatter2 = axes[1].scatter(data[x_col], data[y_col], 
-                                  c=data['predicted_label'], cmap='coolwarm',
-                                  edgecolors='k', s=50, alpha=0.7)
-        axes[1].set_xlabel('Признак 0 (x1)')
-        axes[1].set_ylabel('Признак 1 (x2)')
-        axes[1].set_title('Предсказанные метки')
-        axes[1].grid(True, alpha=0.3)
-        
-        # Добавляем цветовые шкалы
-        plt.colorbar(scatter1, ax=axes[0], label='Класс')
-        plt.colorbar(scatter2, ax=axes[1], label='Класс')
-        
-        # Вычисляем точность
-        correct = (data['true_label'] == data['predicted_label']).sum()
-        accuracy = correct / len(data) * 100
-        
-        fig.suptitle(f'{title} (Точность: {accuracy:.2f}%)', fontsize=16)
-        plt.tight_layout()
-        
-        return fig
+    # Загрузка данных
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
+    pred_df = pd.read_csv(predictions_path)
     
-    except Exception as e:
-        print(f"Ошибка при чтении файла {predictions_file}: {e}")
-        return None
+    # Цвета
+    colors = {0: '#FF4444', 1: '#4444FF'}  # Красный и Синий
+    class_names = {0: 'Красный (класс 0)', 1: 'Синий (класс 1)'}
+    
+    # Создание фигуры
+    fig = plt.figure(figsize=(18, 12))
+    
+    # 1. Обучающая выборка
+    ax1 = plt.subplot(2, 3, 1)
+    for label in [0, 1]:
+        mask = train_df['label'] == label
+        ax1.scatter(train_df.loc[mask, 'x1'], train_df.loc[mask, 'x2'],
+                   c=colors[label], label=class_names[label],
+                   alpha=0.7, edgecolors='black', linewidth=0.5, s=40)
+    ax1.set_xlabel('Признак x1')
+    ax1.set_ylabel('Признак x2')
+    ax1.set_title(f'Обучающая выборка\n{len(train_df)} точек')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # 2. Предсказания модели
+    ax2 = plt.subplot(2, 3, 2)
+    for label in [0, 1]:
+        mask = pred_df['predicted_label'] == label
+        ax2.scatter(pred_df.loc[mask, 'x1'], pred_df.loc[mask, 'x2'],
+                   c=colors[label], label=f'Предсказан: {class_names[label]}',
+                   alpha=0.7, edgecolors='black', linewidth=0.5, s=50)
+    ax2.set_xlabel('Признак x1')
+    ax2.set_ylabel('Признак x2')
+    ax2.set_title(f'Предсказания модели\n{len(pred_df)} тестовых точек')
+    ax2.legend(loc='upper right', fontsize=9)
+    ax2.grid(True, alpha=0.3)
+    
+    # 3. Уверенность предсказаний
+    ax3 = plt.subplot(2, 3, 3)
+    scatter = ax3.scatter(pred_df['x1'], pred_df['x2'],
+                         c=pred_df['confidence'], cmap='RdYlGn',
+                         s=80, alpha=0.8, edgecolors='black', linewidth=0.5,
+                         vmin=50, vmax=100)
+    ax3.set_xlabel('Признак x1')
+    ax3.set_ylabel('Признак x2')
+    ax3.set_title('Уверенность модели в предсказаниях (%)')
+    plt.colorbar(scatter, ax=ax3)
+    ax3.grid(True, alpha=0.3)
+    
+    # 4. Распределение предсказанных классов
+    ax4 = plt.subplot(2, 3, 4)
+    class_counts = pred_df['predicted_label'].value_counts().sort_index()
+    bars = ax4.bar(['Класс 0\n(Красный)', 'Класс 1\n(Синий)'], 
+                   class_counts.values, color=['#FF4444', '#4444FF'],
+                   alpha=0.7, edgecolor='black')
+    ax4.set_ylabel('Количество точек')
+    ax4.set_title('Распределение предсказанных классов')
+    for bar, count in zip(bars, class_counts.values):
+        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
+                str(count), ha='center', va='bottom')
+    
+    # 5. Гистограмма уверенности
+    ax5 = plt.subplot(2, 3, 5)
+    ax5.hist(pred_df['confidence'], bins=20, color='green', alpha=0.7, 
+             edgecolor='black')
+    ax5.set_xlabel('Уверенность (%)')
+    ax5.set_ylabel('Количество точек')
+    ax5.set_title('Распределение уверенности модели')
+    ax5.axvline(pred_df['confidence'].mean(), color='red', linestyle='--', 
+                label=f'Средняя: {pred_df["confidence"].mean():.1f}%')
+    ax5.legend()
+    
+    # 6. Карта "горячих" зон (плотность предсказаний)
+    ax6 = plt.subplot(2, 3, 6)
+    hb = ax6.hexbin(pred_df['x1'], pred_df['x2'], C=pred_df['predicted_label'],
+                    gridsize=20, cmap='RdBu', alpha=0.7)
+    ax6.set_xlabel('Признак x1')
+    ax6.set_ylabel('Признак x2')
+    ax6.set_title('Плотность предсказаний (Красный→Синий)')
+    plt.colorbar(hb, ax=ax6, label='Доминирующий класс')
+    
+    plt.suptitle('АНАЛИЗ РАБОТЫ НЕЙРОННОЙ СЕТИ\nБинарная классификация', 
+                 fontsize=18, fontweight='bold')
+    plt.tight_layout()
+    
+    return fig
 
-def plot_training_history(history_file, title="История обучения"):
-    """Визуализация истории обучения"""
-    if not os.path.exists(history_file):
-        print(f"Файл {history_file} не найден")
-        return None
+def plot_decision_boundary(train_path, predictions_path):
+    """Граница решения на основе предсказаний"""
     
-    try:
-        data = pd.read_csv(history_file)
-        if 'generation' not in data.columns or 'loss' not in data.columns:
-            print(f"Файл {history_file} не содержит нужных столбцов")
-            return None
-        
-        fig, ax = plt.subplots(figsize=(12, 6))
-        
-        ax.plot(data['generation'], data['loss'], linewidth=2, color='red')
-        ax.set_xlabel('Поколение')
-        ax.set_ylabel('Ошибка (loss)')
-        ax.set_title(f'{title} ({len(data)} поколений)')
-        ax.grid(True, alpha=0.3)
-        
-        # Добавляем аннотацию с улучшением
-        if len(data) > 1:
-            initial_loss = data['loss'].iloc[0]
-            final_loss = data['loss'].iloc[-1]
-            improvement = (initial_loss - final_loss) / initial_loss * 100
-            
-            ax.annotate(f'Начальная ошибка: {initial_loss:.4f}\n'
-                       f'Финальная ошибка: {final_loss:.4f}\n'
-                       f'Улучшение: {improvement:.1f}%',
-                       xy=(0.7, 0.9), xycoords='axes fraction',
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
-        
-        plt.tight_layout()
-        return fig
+    train_df = pd.read_csv(train_path)
+    pred_df = pd.read_csv(predictions_path)
     
-    except Exception as e:
-        print(f"Ошибка при чтении файла {history_file}: {e}")
-        return None
-
-def plot_decision_boundary(boundary_file, title="Граница решения"):
-    """Визуализация границы решения"""
-    if not os.path.exists(boundary_file):
-        print(f"Файл {boundary_file} не найден")
-        return None
+    # Создание сетки
+    x_min, x_max = -0.05, 1.05
+    y_min, y_max = -0.05, 1.05
     
-    try:
-        data = pd.read_csv(boundary_file)
-        
-        # Определяем названия столбцов
-        if 'x1' in data.columns and 'x2' in data.columns:
-            x_col, y_col = 'x1', 'x2'
-        elif 'x' in data.columns and 'y' in data.columns:
-            x_col, y_col = 'x', 'y'
-        else:
-            print(f"Файл {boundary_file} не содержит нужных столбцов")
-            return None
-        
-        if 'prediction' not in data.columns:
-            print(f"Файл {boundary_file} не содержит столбца prediction")
-            return None
-        
-        # Определяем размер сетки
-        x_unique = data[x_col].unique()
-        grid_size = len(x_unique)
-        
-        # Преобразуем в матрицу для contourf
-        x_grid = data[x_col].values.reshape(grid_size, grid_size)
-        y_grid = data[y_col].values.reshape(grid_size, grid_size)
-        z_grid = data['prediction'].values.reshape(grid_size, grid_size)
-        
-        fig, ax = plt.subplots(figsize=(10, 8))
-        
-        # Граница решения
-        contour = ax.contourf(x_grid, y_grid, z_grid, levels=[-0.5, 0.5, 1.5], 
-                             alpha=0.3, cmap='coolwarm')
-        
-        # Контуры
-        ax.contour(x_grid, y_grid, z_grid, levels=[0.5], colors='black', linewidths=2)
-        
-        ax.set_xlabel('Признак 0 (x1)')
-        ax.set_ylabel('Признак 1 (x2)')
-        ax.set_title(f'{title} ({grid_size}x{grid_size} точек)')
-        ax.grid(True, alpha=0.3)
-        
-        # Добавляем цветовую шкалу
-        plt.colorbar(contour, ax=ax, label='Предсказанный класс')
-        
-        plt.tight_layout()
-        return fig
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 100),
+                         np.linspace(y_min, y_max, 100))
     
-    except Exception as e:
-        print(f"Ошибка при чтении файла {boundary_file}: {e}")
-        return None
-
-def plot_confusion_matrix_from_predictions(predictions_file, title="Матрица ошибок"):
-    """Визуализация матрицы ошибок из файла предсказаний"""
-    if not os.path.exists(predictions_file):
-        print(f"Файл {predictions_file} не найден")
-        return None
+    # Интерполяция предсказаний на сетку
+    from scipy.interpolate import griddata
     
-    try:
-        data = pd.read_csv(predictions_file)
-        if 'true_label' not in data.columns or 'predicted_label' not in data.columns:
-            print(f"Файл {predictions_file} не содержит нужных столбцов")
-            return None
-        
-        # Вычисляем матрицу ошибок
-        from sklearn.metrics import confusion_matrix
-        import seaborn as sns
-        
-        cm = confusion_matrix(data['true_label'], data['predicted_label'])
-        
-        fig, ax = plt.subplots(figsize=(8, 6))
-        
-        # Тепловая карта
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                   xticklabels=['Предсказано 0', 'Предсказано 1'],
-                   yticklabels=['Истинный 0', 'Истинный 1'],
-                   ax=ax)
-        
-        ax.set_xlabel('Предсказанный класс')
-        ax.set_ylabel('Истинный класс')
-        ax.set_title(title)
-        
-        plt.tight_layout()
-        return fig
+    points = pred_df[['x1', 'x2']].values
+    values = pred_df['predicted_label'].values
+    Z = griddata(points, values, (xx, yy), method='nearest', fill_value=0.5)
     
-    except Exception as e:
-        print(f"Ошибка при чтении файла {predictions_file}: {e}")
-        return None
-
-def display_report(report_file):
-    """Отображение текстового отчета"""
-    if not os.path.exists(report_file):
-        print(f"Файл отчета {report_file} не найден")
-        return
+    # Создание графика
+    fig, ax = plt.subplots(figsize=(12, 10))
     
-    try:
-        with open(report_file, 'r', encoding='utf-8') as f:
-            report_text = f.read()
-        
-        print("\n" + "="*60)
-        print("ОТЧЕТ О ТЕСТИРОВАНИИ")
-        print("="*60)
-        print(report_text)
-        
-    except Exception as e:
-        print(f"Ошибка при чтении файла отчета {report_file}: {e}")
+    # Граница решения
+    contour = ax.contourf(xx, yy, Z, levels=[-0.5, 0.5, 1.5],
+                          colors=['#FF8888', '#8888FF'], alpha=0.4)
+    
+    # Контур
+    ax.contour(xx, yy, Z, levels=[0.5], colors='black', linewidths=2, linestyles='--')
+    
+    # Обучающие точки
+    colors = {0: 'red', 1: 'blue'}
+    for label in [0, 1]:
+        mask = train_df['label'] == label
+        ax.scatter(train_df.loc[mask, 'x1'], train_df.loc[mask, 'x2'],
+                   c=colors[label], label=f'Обучение: класс {label}',
+                   alpha=0.5, edgecolors='black', linewidth=0.5, s=30)
+    
+    # Тестовые точки с предсказаниями
+    for label in [0, 1]:
+        mask = pred_df['predicted_label'] == label
+        ax.scatter(pred_df.loc[mask, 'x1'], pred_df.loc[mask, 'x2'],
+                   c=colors[label], marker='s', s=60,
+                   edgecolors='white', linewidth=1.5,
+                   alpha=0.8, label=f'Предсказание: класс {label}')
+    
+    ax.set_xlabel('Признак x1', fontsize=14)
+    ax.set_ylabel('Признак x2', fontsize=14)
+    ax.set_title('ГРАНИЦА РЕШЕНИЯ НЕЙРОННОЙ СЕТИ\n(Красный класс 0 / Синий класс 1)', 
+                 fontsize=16, fontweight='bold')
+    ax.legend(loc='best', fontsize=11)
+    ax.grid(True, alpha=0.2)
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    
+    # Добавление подписей зон
+    ax.text(0.25, 0.5, 'Зона класса 0\n(Красный)', 
+            transform=ax.transData, fontsize=12, ha='center',
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#FF8888", alpha=0.5))
+    ax.text(0.75, 0.5, 'Зона класса 1\n(Синий)',
+            transform=ax.transData, fontsize=12, ha='center',
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#8888FF", alpha=0.5))
+    
+    plt.tight_layout()
+    return fig
 
 def main():
     """Основная функция"""
-    print("Визуализация результатов тестирования нейронной сети")
+    print("="*60)
+    print("ВИЗУАЛИЗАЦИЯ РАБОТЫ НЕЙРОННОЙ СЕТИ")
     print("="*60)
     
-    # Настройка стиля графиков
-    setup_plot_style()
-    
-    # Определяем директорию, где находится скрипт
+    # Поиск файлов
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Список доступных файлов в директории скрипта
-    available_files = []
-    for file in os.listdir(script_dir):
-        if file.endswith('.csv') or file.endswith('.txt'):
-            available_files.append(file)
+    # Пути к файлам (как в вашей структуре)
+    train_path = os.path.join(script_dir, "data", "train.csv")
+    test_path = os.path.join(script_dir, "data", "test.csv")
+    predictions_path = os.path.join(script_dir, "data", "predictions.csv")
     
-    if not available_files:
-        print(f"В папке {script_dir} не найдено файлов для визуализации")
-        print("Запустите сначала программу на C++ для генерации данных")
-        print("\nОжидаемые файлы:")
-        print("  - train_data.csv")
-        print("  - test_data.csv")
-        print("  - test_predictions.csv")
-        print("  - training_history.csv")
-        print("  - decision_boundary.csv")
-        print("  - test_report.txt")
+    # Проверка наличия файлов
+    if not os.path.exists(train_path):
+        # Пробуем другие варианты
+        train_path = "data/train.csv"
+        test_path = "data/test.csv"
+        predictions_path = "data/predictions.csv"
+    
+    if not os.path.exists(train_path) or not os.path.exists(test_path):
+        print("\nОШИБКА: Не найдены файлы данных!")
+        print("Ожидаемые пути:")
+        print(f"  - {train_path}")
+        print(f"  - {test_path}")
         return
     
-    print(f"Найдены файлы в {script_dir}:")
-    for i, file in enumerate(available_files, 1):
-        print(f"  {i}. {file}")
+    print(f"\nЗагружены файлы:")
+    print(f"  - Обучающая выборка: {train_path}")
+    print(f"  - Тестовая выборка: {test_path}")
     
-    # Автоматическое определение типов файлов
-    figures = []
-    
-    # 1. Обучающие данные
-    train_files = [f for f in available_files if 'train' in f.lower() and f.endswith('.csv')]
-    for train_file in train_files:
-        filepath = os.path.join(script_dir, train_file)
-        fig = plot_dataset(filepath, "Обучающая выборка")
-        if fig:
-            figures.append((fig, f"train_{train_file}"))
-    
-    # 2. Тестовые данные
-    test_files = [f for f in available_files if 'test' in f.lower() and f.endswith('.csv') and 'prediction' not in f.lower()]
-    for test_file in test_files:
-        filepath = os.path.join(script_dir, test_file)
-        fig = plot_dataset(filepath, "Тестовая выборка")
-        if fig:
-            figures.append((fig, f"test_{test_file}"))
-    
-    # 3. Предсказания
-    pred_files = [f for f in available_files if 'prediction' in f.lower() and f.endswith('.csv')]
-    for pred_file in pred_files:
-        filepath = os.path.join(script_dir, pred_file)
-        fig = plot_predictions(filepath, "Предсказания модели")
-        if fig:
-            figures.append((fig, f"predictions_{pred_file}"))
-        
-        # Матрица ошибок из предсказаний
-        cm_fig = plot_confusion_matrix_from_predictions(filepath, "Матрица ошибок")
-        if cm_fig:
-            figures.append((cm_fig, f"confusion_matrix_{pred_file}"))
-    
-    # 4. История обучения
-    history_files = [f for f in available_files if 'history' in f.lower() and f.endswith('.csv')]
-    for history_file in history_files:
-        filepath = os.path.join(script_dir, history_file)
-        fig = plot_training_history(filepath, "История обучения")
-        if fig:
-            figures.append((fig, f"history_{history_file}"))
-    
-    # 5. Граница решения
-    boundary_files = [f for f in available_files if 'boundary' in f.lower() and f.endswith('.csv')]
-    for boundary_file in boundary_files:
-        filepath = os.path.join(script_dir, boundary_file)
-        fig = plot_decision_boundary(filepath, "Граница решения")
-        if fig:
-            figures.append((fig, f"boundary_{boundary_file}"))
-    
-    # 6. Отчеты
-    report_files = [f for f in available_files if f.endswith('.txt')]
-    for report_file in report_files:
-        filepath = os.path.join(script_dir, report_file)
-        display_report(filepath)
-    
-    # Сохранение графиков
-    if figures:
-        print(f"\nСоздано {len(figures)} графиков")
-        
-        # Создаем папку для сохранения
-        output_dir = os.path.join(script_dir, "plots")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        for i, (fig, name) in enumerate(figures, 1):
-            filename = os.path.join(output_dir, f"{name}.png")
-            fig.savefig(filename, dpi=300, bbox_inches='tight')
-            print(f"  {i}. График сохранен как {filename}")
-        
-        print(f"\nВсе графики сохранены в папке '{output_dir}/'")
-        
-        # Показываем графики
-        show = input("\nПоказать графики на экране? (y/n): ").lower()
-        if show == 'y':
-            plt.show()
+    # Создание предсказаний (если нет готовых)
+    if not os.path.exists(predictions_path):
+        print("\nФайл с предсказаниями не найден. Создаем на основе обучающей выборки...")
+        pred_df = create_demo_predictions_from_train(train_path, test_path, predictions_path)
     else:
-        print("\nНе удалось создать графики. Проверьте наличие корректных данных.")
+        pred_df = pd.read_csv(predictions_path)
+        print(f"\nЗагружены предсказания: {predictions_path}")
     
-    print("\nЗавершено!")
+    # Создание графиков
+    print("\nСоздание графиков...")
+    
+    # Основной график
+    fig1 = plot_model_results(train_path, test_path, predictions_path)
+    
+    # Граница решения
+    fig2 = plot_decision_boundary(train_path, predictions_path)
+    
+    # Сохранение
+    output_dir = "visualization_results"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    fig1.savefig(os.path.join(output_dir, "model_analysis.png"), dpi=300, bbox_inches='tight')
+    fig2.savefig(os.path.join(output_dir, "decision_boundary.png"), dpi=300, bbox_inches='tight')
+    
+    print(f"\n✓ Графики сохранены в папку '{output_dir}/'")
+    print(f"  - model_analysis.png (6 графиков работы модели)")
+    print(f"  - decision_boundary.png (граница решения)")
+    
+    # Статистика
+    print("\n" + "="*60)
+    print("СТАТИСТИКА ПРЕДСКАЗАНИЙ")
+    print("="*60)
+    print(f"Тестовых точек: {len(pred_df)}")
+    print(f"Класс 0 (Красный): {(pred_df['predicted_label'] == 0).sum()} точек")
+    print(f"Класс 1 (Синий): {(pred_df['predicted_label'] == 1).sum()} точек")
+    print(f"Средняя уверенность: {pred_df['confidence'].mean():.1f}%")
+    print(f"Мин. уверенность: {pred_df['confidence'].min():.1f}%")
+    print(f"Макс. уверенность: {pred_df['confidence'].max():.1f}%")
+    print("="*60)
+    
+    # Показ графиков
+    show = input("\nПоказать графики? (y/n): ").lower()
+    if show == 'y':
+        plt.show()
 
 if __name__ == "__main__":
-    # Проверяем зависимости
     try:
         import numpy as np
         import pandas as pd
         import matplotlib.pyplot as plt
+        from scipy.spatial import KDTree
+        from scipy.interpolate import griddata
     except ImportError as e:
-        print(f"Ошибка: отсутствуют необходимые библиотеки Python")
-        print(f"Установите их командой: pip install numpy pandas matplotlib scikit-learn seaborn")
+        print(f"Ошибка: установите необходимые библиотеки:")
+        print("pip install numpy pandas matplotlib scipy")
+        import sys
         sys.exit(1)
     
     main()

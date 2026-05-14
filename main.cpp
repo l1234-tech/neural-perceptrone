@@ -9,11 +9,71 @@
 #include <vector>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 
 void printHeader(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << "\n";
     std::cout << "  " << title << "\n";
     std::cout << std::string(50, '=') << "\n";
+}
+
+// Простая функция для гарантированного сохранения предсказаний
+void saveModelPredictionsSimple(const NeuralNetwork& network, const DataSet& dataset, const std::string& filename) {
+    std::cout << "Сохранение предсказаний в файл: " << filename << std::endl;
+    
+    // Гарантируем, что папка существует
+    std::filesystem::path filepath(filename);
+    std::filesystem::create_directories(filepath.parent_path());
+    
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "ОШИБКА: Не удалось открыть файл " << filename << " для записи" << std::endl;
+        return;
+    }
+    
+    // Заголовок в формате train.csv
+    file << "x1,x2,label" << std::endl;
+    
+    int saved_count = 0;
+    for (size_t i = 0; i < dataset.size(); ++i) {
+        const auto& point = dataset.get(i);
+        const auto& features = point.getFeatures();
+        
+        if (features.size() >= 2) {
+            // Создаем входной вектор
+            Vector input(features.size());
+            for (size_t j = 0; j < features.size(); ++j) {
+                input[j] = features[j];
+            }
+            
+            // Получаем предсказание
+            int predicted = network.predict(input);
+            
+            // Записываем в файл
+            file << std::fixed << std::setprecision(6) 
+                 << features[0] << "," 
+                 << features[1] << "," 
+                 << predicted << std::endl;
+            saved_count++;
+        }
+    }
+    
+    file.close();
+    
+    if (saved_count > 0) {
+        std::cout << "✓ Сохранено " << saved_count << " предсказаний в " << filename << std::endl;
+        
+        // Проверяем создание файла
+        if (std::filesystem::exists(filename)) {
+            auto file_size = std::filesystem::file_size(filename);
+            std::cout << "  Размер файла: " << file_size << " байт" << std::endl;
+        } else {
+            std::cerr << "✗ Файл не был создан!" << std::endl;
+        }
+    } else {
+        std::cerr << "✗ Не удалось сохранить ни одного предсказания" << std::endl;
+        std::cerr << "  Размер датасета: " << dataset.size() << std::endl;
+    }
 }
 
 std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
@@ -218,6 +278,45 @@ void testModel(const NeuralNetwork& network, const DataSet& testData) {
             
             Visualizer::saveDecisionBoundary(network, xMin, xMax, yMin, yMax, 
                                             50, "visualization/decision_boundary.csv");
+        }
+    }
+    
+    // ГАРАНТИРОВАННОЕ СОХРАНЕНИЕ ПРЕДСКАЗАНИЙ В ПАПКУ DATA
+    std::cout << "\n=== ГАРАНТИРОВАННОЕ СОХРАНЕНИЕ ПРЕДСКАЗАНИЙ ===\n";
+    
+    // Способ 1: Используем улучшенную функцию из Visualizer
+    std::string predictionsFile = "data/predictions.csv";
+    std::cout << "Способ 1: Использование Visualizer::savePredictionsToDataCSV\n";
+    
+    try {
+        Visualizer::savePredictionsToDataCSV(network, testData, predictionsFile);
+    } catch (const std::exception& e) {
+        std::cerr << "  Visualizer не сработал: " << e.what() << "\n";
+        
+        // Способ 2: Используем простую функцию
+        std::cout << "Способ 2: Использование простой функции сохранения\n";
+        saveModelPredictionsSimple(network, testData, predictionsFile);
+    }
+    
+    // Дополнительная проверка
+    if (std::filesystem::exists(predictionsFile)) {
+        std::cout << "\n✓ Файл с предсказаниями УСПЕШНО создан: " << predictionsFile << "\n";
+        std::cout << "  Путь: " << std::filesystem::absolute(predictionsFile) << "\n";
+        std::cout << "  Размер: " << std::filesystem::file_size(predictionsFile) << " байт\n";
+        std::cout << "  Формат: x1,x2,label (совместим с train.csv)\n";
+    } else {
+        std::cerr << "\n✗ КРИТИЧЕСКАЯ ОШИБКА: Файл не создан!\n";
+        std::cerr << "  Попытка создать файл в текущей директории...\n";
+        
+        // Последняя попытка: создаем файл в текущей директории
+        std::string fallbackFile = "predictions_fallback.csv";
+        saveModelPredictionsSimple(network, testData, fallbackFile);
+        
+        if (std::filesystem::exists(fallbackFile)) {
+            std::cout << "  Файл создан как: " << fallbackFile << "\n";
+        } else {
+            std::cerr << "  Не удалось создать файл даже в текущей директории\n";
+            std::cerr << "  Проверьте права доступа к файловой системе\n";
         }
     }
     
