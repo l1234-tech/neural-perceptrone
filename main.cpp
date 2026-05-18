@@ -3,77 +3,16 @@
 #include "data/DataLoader.h"
 #include "data/XORDataGenerator.h"
 #include "utils/Random.h"
-#include "utils/Visualizer.h"
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 
 void printHeader(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << "\n";
     std::cout << "  " << title << "\n";
     std::cout << std::string(50, '=') << "\n";
-}
-
-// Простая функция для гарантированного сохранения предсказаний
-void saveModelPredictionsSimple(const NeuralNetwork& network, const DataSet& dataset, const std::string& filename) {
-    std::cout << "Сохранение предсказаний в файл: " << filename << std::endl;
-    
-    // Гарантируем, что папка существует
-    std::filesystem::path filepath(filename);
-    std::filesystem::create_directories(filepath.parent_path());
-    
-    std::ofstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "ОШИБКА: Не удалось открыть файл " << filename << " для записи" << std::endl;
-        return;
-    }
-    
-    // Заголовок в формате train.csv
-    file << "x1,x2,label" << std::endl;
-    
-    int saved_count = 0;
-    for (size_t i = 0; i < dataset.size(); ++i) {
-        const auto& point = dataset.get(i);
-        const auto& features = point.getFeatures();
-        
-        if (features.size() >= 2) {
-            // Создаем входной вектор
-            Vector input(features.size());
-            for (size_t j = 0; j < features.size(); ++j) {
-                input[j] = features[j];
-            }
-            
-            // Получаем предсказание
-            int predicted = network.predict(input);
-            
-            // Записываем в файл
-            file << std::fixed << std::setprecision(6) 
-                 << features[0] << "," 
-                 << features[1] << "," 
-                 << predicted << std::endl;
-            saved_count++;
-        }
-    }
-    
-    file.close();
-    
-    if (saved_count > 0) {
-        std::cout << "✓ Сохранено " << saved_count << " предсказаний в " << filename << std::endl;
-        
-        // Проверяем создание файла
-        if (std::filesystem::exists(filename)) {
-            auto file_size = std::filesystem::file_size(filename);
-            std::cout << "  Размер файла: " << file_size << " байт" << std::endl;
-        } else {
-            std::cerr << "✗ Файл не был создан!" << std::endl;
-        }
-    } else {
-        std::cerr << "✗ Не удалось сохранить ни одного предсказания" << std::endl;
-        std::cerr << "  Размер датасета: " << dataset.size() << std::endl;
-    }
 }
 
 std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
@@ -125,7 +64,7 @@ std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
     return {trainData, testData};
 }
 
-NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData, std::vector<double>& lossHistory) {
+NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ");
     
     NeuralNetwork network({2, 8, 4, 1}); 
@@ -146,7 +85,7 @@ NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData, std:
     std::cout << "\nНачало обучения...\n";
     auto startTime = std::chrono::steady_clock::now();
     
-    lossHistory = trainer.train(network, trainData, testData);
+    auto lossHistory = trainer.train(network, trainData, testData);
     
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -241,87 +180,6 @@ void testModel(const NeuralNetwork& network, const DataSet& testData) {
         std::cout << "  False Negatives: " << falseNegatives << "\n";
     }
     
-    // Сохранение данных для визуализации
-    std::cout << "\nСохранение данных для визуализации...\n";
-    
-    // Создаем папку для результатов
-    std::filesystem::create_directories("visualization");
-    
-    // Сохраняем тестовые данные с предсказаниями
-    Visualizer::savePredictionsToCSV(network, testData, "visualization/test_predictions.csv");
-    
-    // Сохраняем отчет о тестировании
-    Visualizer::saveTestReport(network, testData, "visualization/test_report.txt");
-    
-    // Сохраняем границу решения (для 2D данных)
-    if (testData.size() > 0) {
-        const auto& firstPoint = testData.get(0);
-        if (firstPoint.getFeatures().size() == 2) {
-            // Определяем границы по данным
-            double xMin = 0.0, xMax = 1.0, yMin = 0.0, yMax = 1.0;
-            
-            // Ищем фактические границы в данных
-            for (size_t i = 0; i < testData.size(); ++i) {
-                const auto& point = testData.get(i);
-                const auto& features = point.getFeatures();
-                if (features.size() >= 2) {
-                    xMin = std::min(xMin, features[0]);
-                    xMax = std::max(xMax, features[0]);
-                    yMin = std::min(yMin, features[1]);
-                    yMax = std::max(yMax, features[1]);
-                }
-            }
-            
-            // Добавляем отступы
-            xMin -= 0.1; xMax += 0.1;
-            yMin -= 0.1; yMax += 0.1;
-            
-            Visualizer::saveDecisionBoundary(network, xMin, xMax, yMin, yMax, 
-                                            50, "visualization/decision_boundary.csv");
-        }
-    }
-    
-    // ГАРАНТИРОВАННОЕ СОХРАНЕНИЕ ПРЕДСКАЗАНИЙ В ПАПКУ DATA
-    std::cout << "\n=== ГАРАНТИРОВАННОЕ СОХРАНЕНИЕ ПРЕДСКАЗАНИЙ ===\n";
-    
-    // Способ 1: Используем улучшенную функцию из Visualizer
-    std::string predictionsFile = "data/predictions.csv";
-    std::cout << "Способ 1: Использование Visualizer::savePredictionsToDataCSV\n";
-    
-    try {
-        Visualizer::savePredictionsToDataCSV(network, testData, predictionsFile);
-    } catch (const std::exception& e) {
-        std::cerr << "  Visualizer не сработал: " << e.what() << "\n";
-        
-        // Способ 2: Используем простую функцию
-        std::cout << "Способ 2: Использование простой функции сохранения\n";
-        saveModelPredictionsSimple(network, testData, predictionsFile);
-    }
-    
-    // Дополнительная проверка
-    if (std::filesystem::exists(predictionsFile)) {
-        std::cout << "\n✓ Файл с предсказаниями УСПЕШНО создан: " << predictionsFile << "\n";
-        std::cout << "  Путь: " << std::filesystem::absolute(predictionsFile) << "\n";
-        std::cout << "  Размер: " << std::filesystem::file_size(predictionsFile) << " байт\n";
-        std::cout << "  Формат: x1,x2,label (совместим с train.csv)\n";
-    } else {
-        std::cerr << "\n✗ КРИТИЧЕСКАЯ ОШИБКА: Файл не создан!\n";
-        std::cerr << "  Попытка создать файл в текущей директории...\n";
-        
-        // Последняя попытка: создаем файл в текущей директории
-        std::string fallbackFile = "predictions_fallback.csv";
-        saveModelPredictionsSimple(network, testData, fallbackFile);
-        
-        if (std::filesystem::exists(fallbackFile)) {
-            std::cout << "  Файл создан как: " << fallbackFile << "\n";
-        } else {
-            std::cerr << "  Не удалось создать файл даже в текущей директории\n";
-            std::cerr << "  Проверьте права доступа к файловой системе\n";
-        }
-    }
-    
-    std::cout << "\nДанные для визуализации сохранены в папке 'visualization/'\n";
-    std::cout << "Для просмотра графиков запустите: python visualization/plot_results.py\n";
 }
 
 int main() {
@@ -330,21 +188,10 @@ int main() {
         
         system("chcp 65001 > nul");
         
-        bool useExistingFiles = true;  // Используем существующие файлы
+        bool useExistingFiles = false;  
         auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
         
-        // Сохраняем исходные данные для визуализации
-        std::filesystem::create_directories("visualization");
-        Visualizer::saveDatasetToCSV(trainData, "visualization/train_data.csv");
-        Visualizer::saveDatasetToCSV(testData, "visualization/test_data.csv");
-        
-        std::vector<double> lossHistory;
-        NeuralNetwork model = trainModel(trainData, testData, lossHistory);
-        
-        // Сохраняем историю обучения
-        if (!lossHistory.empty()) {
-            Visualizer::saveTrainingHistoryToCSV(lossHistory, "visualization/training_history.csv");
-        }
+        NeuralNetwork model = trainModel(trainData, testData);
         
         testModel(model, testData);
         
