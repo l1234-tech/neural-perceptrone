@@ -1,7 +1,8 @@
 #include "neural_network/NeuralNetwork.h"
 #include "trainer/GeneticTrainer.h"
 #include "data/DataLoader.h"
-#include "data/XORDataGenerator.h"
+#include "data/DataSet.h"
+#include "metrics/ClassificationMetrics.h"
 #include "utils/Random.h"
 #include <iostream>
 #include <iomanip>
@@ -10,67 +11,47 @@
 #include <filesystem>
 
 void printHeader(const std::string& title) {
-    std::cout << "\n" << std::string(50, '=') << "\n";
+    std::cout << "\n" << std::string(60, '=') << "\n";
     std::cout << "  " << title << "\n";
-    std::cout << std::string(50, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
 }
 
-std::pair<DataSet, DataSet> loadOrGenerateData(bool useFiles = false) {
-    printHeader("ПОДГОТОВКА ДАННЫХ");
+NeuralNetwork createNetwork(size_t featureCount) {
+    // Автоматическое определение архитектуры: [featureCount, 8, 4, 1]
+    std::vector<size_t> architecture = {featureCount, 8, 4, 1};
+    NeuralNetwork network(architecture);
     
-    DataSet trainData, testData;
-
-    std::filesystem::create_directories("data");
-    
-    if (useFiles && std::filesystem::exists("data/train.csv") && 
-                    std::filesystem::exists("data/test.csv")) {
-        std::cout << "Загрузка данных из файлов...\n";
-        
-        try {
-            trainData = DataLoader::loadFromCSV("data/train.csv");
-            testData = DataLoader::loadFromCSV("data/test.csv");
-            
-            std::cout << "Обучающая выборка: " << trainData.size() << " примеров\n";
-            std::cout << "Тестовая выборка: " << testData.size() << " примеров\n";
-            
-            return {trainData, testData};
-            
-        } catch (const std::exception& e) {
-            std::cerr << "Ошибка загрузки данных: " << e.what() << "\n";
-            std::cout << "Переключение на генерацию данных...\n";
-            useFiles = false;
-        }
+    std::cout << "Архитектура сети: [";
+    for (size_t i = 0; i < architecture.size(); ++i) {
+        std::cout << architecture[i];
+        if (i < architecture.size() - 1) std::cout << " → ";
     }
+    std::cout << "]\n";
+    std::cout << "Всего параметров: " << network.getTotalParameters() << "\n";
     
-    std::cout << "Генерация разнообразных данных XOR...\n";
+    return network;
+}
+
+std::pair<DataSet, DataSet> loadAndSplitDataset(const std::string& filename) {
+    std::cout << "\nЗагрузка данных из: " << filename << "\n";
     
-    XORDataGenerator generator(
-        400,    // размер обучающей выборки
-        150,    // размер тестовой выборки
-        0.2,   // уровень шума 
-        0.6,    // соотношение классов 
-        42      // seed для воспроизводимости
-    );
+    DataSet fullDataset = DataLoader::loadFromCSV(filename);
+    size_t featureCount = fullDataset.getFeatureCount();
     
-    auto [generatedTrain, generatedTest] = generator.generateData();
-    trainData = generatedTrain;
-    testData = generatedTest;
+    std::cout << "Загружено примеров: " << fullDataset.size() << "\n";
+    std::cout << "Количество признаков: " << featureCount << "\n";
     
-    generator.printStats(trainData, testData);
+    // Разделение 80/20
+    auto [trainData, testData] = fullDataset.split(0.8);
     
-    std::cout << "\nСохранение данных в файлы...\n";
-    generator.saveToCSV(trainData, testData, "data/train.csv", "data/test.csv");
+    std::cout << "Обучающая выборка: " << trainData.size() << " примеров\n";
+    std::cout << "Тестовая выборка: " << testData.size() << " примеров\n";
     
     return {trainData, testData};
 }
 
-NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
+NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const DataSet& testData) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ");
-    
-    NeuralNetwork network({2, 8, 4, 1}); 
-    
-    std::cout << "Архитектура сети: [2 → 8 → 4 → 1]\n";
-    std::cout << "Всего параметров: " << network.getTotalParameters() << "\n";
     
     GeneticTrainer trainer(
         300,   // размер популяции 
@@ -113,73 +94,13 @@ NeuralNetwork trainModel(const DataSet& trainData, const DataSet& testData) {
     return network;
 }
 
-void testModel(const NeuralNetwork& network, const DataSet& testData) {
-    printHeader("ТЕСТИРОВАНИЕ МОДЕЛИ");
+ClassificationMetrics evaluateModel(NeuralNetwork& network, const DataSet& testData, const std::string& datasetName) {
+    printHeader("ОЦЕНКА МОДЕЛИ: " + datasetName);
     
-    if (testData.empty()) {
-        std::cout << "Тестовая выборка пуста\n";
-        return;
-    }
+    ClassificationMetrics metrics = calculateMetrics(network, testData);
+    printMetrics(metrics);
     
-    int correct = 0;
-    int falsePositives = 0;  // Класс 0 предсказан как 1    
-    int falseNegatives = 0;  // Класс 1 предсказан как 0
-    int truePositives = 0;   // Класс 1 предсказан как 1
-    int trueNegatives = 0;   // Класс 0 предсказан как 0
-    
-    std::vector<std::tuple<Vector, int, int, double>> errors; // вход, ожидаемый, предсказанный, уверенность
-    
-    for (size_t i = 0; i < testData.size(); ++i) {
-        const auto& point = testData.get(i);
-        const auto& features = point.getFeatures();
-        
-        Vector input(features.size());
-        for (size_t j = 0; j < features.size(); ++j) {
-            input[j] = features[j];
-        }
-        
-        int predicted = network.predict(input);
-        int expected = point.getLabel();
-        Vector output = network.forward(input);
-        double confidence = std::abs(output[0] - 0.5) * 2.0 * 100.0;
-        
-        if (predicted == expected) {
-            correct++;
-            if (expected == 0) trueNegatives++;
-            else truePositives++;
-        } else {
-            if (expected == 0 && predicted == 1) falsePositives++;
-            if (expected == 1 && predicted == 0) falseNegatives++;
-            errors.emplace_back(input, expected, predicted, confidence);
-        }
-    }
-    
-    double accuracy = static_cast<double>(correct) / testData.size() * 100.0;
-    double loss = network.computeLoss(testData);
-    
-    std::cout << "Точность: " << std::fixed << std::setprecision(2) << accuracy << "%\n";
-    std::cout << "Ошибка (loss): " << std::setprecision(6) << loss << "\n";
-    std::cout << "Правильных: " << correct << "/" << testData.size() << "\n";
-    
-    // Расширенная статистика
-    if (testData.size() > 0) {
-        double precision = (truePositives + falsePositives) > 0 ? 
-            static_cast<double>(truePositives) / (truePositives + falsePositives) * 100.0 : 0.0;
-        double recall = (truePositives + falseNegatives) > 0 ?
-            static_cast<double>(truePositives) / (truePositives + falseNegatives) * 100.0 : 0.0;
-        double f1Score = (precision + recall) > 0 ? 
-            2.0 * precision * recall / (precision + recall) : 0.0;
-        
-        std::cout << "\nРасширенная статистика:\n";
-        std::cout << "  Precision: " << std::setprecision(1) << precision << "%\n";
-        std::cout << "  Recall: " << recall << "%\n";
-        std::cout << "  F1-Score: " << f1Score << "%\n";
-        std::cout << "  True Positives: " << truePositives << "\n";
-        std::cout << "  True Negatives: " << trueNegatives << "\n";
-        std::cout << "  False Positives: " << falsePositives << "\n";
-        std::cout << "  False Negatives: " << falseNegatives << "\n";
-    }
-    
+    return metrics;
 }
 
 int main() {
@@ -188,19 +109,58 @@ int main() {
         
         system("chcp 65001 > nul");
         
-        bool useExistingFiles = false;  
-        auto [trainData, testData] = loadOrGenerateData(useExistingFiles);
+        printHeader("ЛАБОРАТОРНАЯ РАБОТА: КЛАССИФИКАЦИЯ");
         
-        NeuralNetwork model = trainModel(trainData, testData);
+        // Датасет 1 (2 признака)
+        std::cout << "\n" << std::string(60, '#') << "\n";
+        std::cout << "# ДАТАСЕТ 1 (d1.csv - 2 признака)\n";
+        std::cout << std::string(60, '#') << "\n";
         
-        testModel(model, testData);
+        auto [trainData1, testData1] = loadAndSplitDataset("data/d1.csv");
+        NeuralNetwork network1 = createNetwork(trainData1.getFeatureCount());
+        trainModel(network1, trainData1, testData1);
+        ClassificationMetrics metrics1 = evaluateModel(network1, testData1, "d1.csv");
+        
+        // Датасет 2 (4 признака)
+        std::cout << "\n" << std::string(60, '#') << "\n";
+        std::cout << "# ДАТАСЕТ 2 (d2.csv - 4 признака)\n";
+        std::cout << std::string(60, '#') << "\n";
+        
+        auto [trainData2, testData2] = loadAndSplitDataset("data/d2.csv");
+        NeuralNetwork network2 = createNetwork(trainData2.getFeatureCount());
+        trainModel(network2, trainData2, testData2);
+        ClassificationMetrics metrics2 = evaluateModel(network2, testData2, "d2.csv");
+        
+        // Итоговая оценка
+        printHeader("ИТОГОВАЯ ОЦЕНКА");
+        
+        double f1_d1 = metrics1.macroF1;
+        double f1_d2 = metrics2.macroF1;
+        double finalScore = calculateFinalScore(f1_d1, f1_d2);
+        
+        std::cout << std::fixed << std::setprecision(4);
+        std::cout << "F1-Score (d1): " << f1_d1 << "\n";
+        std::cout << "F1-Score (d2): " << f1_d2 << "\n";
+        std::cout << "\nФормула: 0.5 * F1(d1) + 0.5 * F1(d2)\n";
+        std::cout << "Итоговая оценка: " << finalScore << "\n";
+        
+        if (finalScore >= 0.55) {
+            std::cout << "\n✓ ЗАЧЕТ! Итоговая оценка >= 0.55\n";
+        } else {
+            std::cout << "\n✗ НЕЗАЧЕТ. Итоговая оценка < 0.55\n";
+            std::cout << "Требуется улучшение модели.\n";
+        }
+        
+        std::cout << std::string(60, '=') << "\n";
         
     } catch (const std::exception& e) {
         std::cerr << "\nОШИБКА: " << e.what() << "\n";
         std::cerr << "\nВозможные причины:\n";
-        std::cerr << "1. Проблемы с генерацией данных\n";
-        std::cerr << "2. Недостаточно памяти\n";
-        std::cerr << "3. Ошибка в конфигурации алгоритма\n";
+        std::cerr << "1. Файлы d1.csv и d2.csv не найдены в папке data/\n";
+        std::cerr << "2. Некорректный формат CSV\n";
+        std::cerr << "3. Недостаточно памяти\n";
+        std::cerr << "4. Ошибка в конфигурации алгоритма\n";
+        return 1;
     }
     return 0;
 }

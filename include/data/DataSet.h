@@ -3,6 +3,7 @@
 #include "data/DataPoint.h"
 #include <vector>
 #include <cstddef>
+#include <utility>
 
 class NeuralNetwork;
 
@@ -18,4 +19,8 @@ public:
     const DataPoint& get(size_t index) const;
     bool empty() const;
     double computeAccuracy(NeuralNetwork& net) const;
+    
+    std::pair<DataSet, DataSet> split(double ratio = 0.8) const;
+    void shuffle();
+    size_t getFeatureCount() const;
 };

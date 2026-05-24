@@ -4,61 +4,116 @@
 #include <sstream>
 #include <stdexcept>
 #include <memory>
+#include <cctype>
+#include <algorithm>
+#include <cmath>
 
-// Реализации конкретных парсеров
-class CSVWithLabelsParser : public DataParser {
+// Универсальный парсер CSV с поддержкой произвольного количества признаков
+class CSVWithLabelsParser : public UniversalCSVParser {
 public:
     DataPoint parse(const std::string& line, char delimiter) const override {
         std::stringstream ss(line);
-        double x, y;
-        int label;
-        char comma;
+        std::string token;
+        std::vector<double> features;
         
-        if (!(ss >> x >> comma >> y >> comma >> label)) {
-            throw std::runtime_error("Failed to parse line with labels: " + line);
+        // Читаем все значения через запятую
+        while (std::getline(ss, token, delimiter)) {
+            // Убираем пробелы в начале и конце
+            size_t start = token.find_first_not_of(" \t\r\n");
+            size_t end = token.find_last_not_of(" \t\r\n");
+            if (start != std::string::npos) {
+                token = token.substr(start, end - start + 1);
+            }
+            
+            try {
+                double value = std::stod(token);
+                features.push_back(value);
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Failed to parse value: '" + token + "' in line: " + line);
+            }
         }
         
-        if (comma != delimiter) {
-            throw std::runtime_error("Invalid delimiter in line: " + line);
+        if (features.size() < 2) {
+            throw std::runtime_error("Line must have at least 2 columns (features + target): " + line);
         }
         
-        return DataPoint({x, y}, label);
+        // Последний столбец — target, остальные — признаки
+        int label = static_cast<int>(std::round(features.back()));
+        features.pop_back();
+        
+        return DataPoint(features, label);
     }
     
     bool validateLine(const std::string& line, char delimiter) const override {
-        std::stringstream ss(line);
-        double x, y;
-        int label;
-        char comma;
+        if (line.empty()) return false;
         
-        return !!(ss >> x >> comma >> y >> comma >> label) && comma == delimiter;
+        std::stringstream ss(line);
+        std::string token;
+        std::vector<double> values;
+        
+        while (std::getline(ss, token, delimiter)) {
+            size_t start = token.find_first_not_of(" \t\r\n");
+            size_t end = token.find_last_not_of(" \t\r\n");
+            if (start != std::string::npos) {
+                token = token.substr(start, end - start + 1);
+            }
+            
+            try {
+                values.push_back(std::stod(token));
+            } catch (...) {
+                return false;
+            }
+        }
+        
+        return values.size() >= 2;
     }
 };
 
-class CSVWithoutLabelsParser : public DataParser {
+class CSVWithoutLabelsParser : public UniversalCSVParser {
 public:
     DataPoint parse(const std::string& line, char delimiter) const override {
         std::stringstream ss(line);
-        double x, y;
-        char comma;
+        std::string token;
+        std::vector<double> features;
         
-        if (!(ss >> x >> comma >> y)) {
-            throw std::runtime_error("Failed to parse line without labels: " + line);
+        while (std::getline(ss, token, delimiter)) {
+            size_t start = token.find_first_not_of(" \t\r\n");
+            size_t end = token.find_last_not_of(" \t\r\n");
+            if (start != std::string::npos) {
+                token = token.substr(start, end - start + 1);
+            }
+            
+            try {
+                features.push_back(std::stod(token));
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Failed to parse value: '" + token + "' in line: " + line);
+            }
         }
         
-        if (comma != delimiter) {
-            throw std::runtime_error("Invalid delimiter in line: " + line);
-        }
-        
-        return DataPoint({x, y}, -1);
+        return DataPoint(features, -1);
     }
     
     bool validateLine(const std::string& line, char delimiter) const override {
-        std::stringstream ss(line);
-        double x, y;
-        char comma;
+        if (line.empty()) return false;
         
-        return !!(ss >> x >> comma >> y) && comma == delimiter;
+        std::stringstream ss(line);
+        std::string token;
+        
+        while (std::getline(ss, token, delimiter)) {
+            size_t start = token.find_first_not_of(" \t\r\n");
+            size_t end = token.find_last_not_of(" \t\r\n");
+            if (start != std::string::npos) {
+                token = token.substr(start, end - start + 1);
+            }
+            
+            try {
+                std::stod(token);
+            } catch (...) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 };
 
@@ -78,8 +133,8 @@ std::ofstream DataLoader::openFileForWriting() const {
     return file;
 }
 
-DataLoader::DataLoader(const std::string& filename, bool hasLabels, char delimiter)
-    : filename(filename), delimiter(delimiter) {
+DataLoader::DataLoader(const std::string& filename, bool hasLabels, char delimiter, bool hasHeader)
+    : filename(filename), delimiter(delimiter), hasHeader(hasHeader) {
     
     if (hasLabels) {
         parser = std::make_unique<CSVWithLabelsParser>();
@@ -96,6 +151,12 @@ DataSet DataLoader::load() {
     size_t lineNumber = 0;
     size_t validLines = 0;
     size_t invalidLines = 0;
+    
+    // Пропускаем заголовок если есть
+    if (hasHeader) {
+        std::getline(file, line);
+        lineNumber++;
+    }
     
     while (std::getline(file, line)) {
         lineNumber++;
@@ -127,17 +188,29 @@ void DataLoader::save(const DataSet& data) {
     
     std::ofstream file = openFileForWriting();
     
+    // Записываем заголовок
+    size_t featureCount = data.getFeatureCount();
+    for (size_t i = 0; i < featureCount; ++i) {
+        file << "feature_" << i;
+        if (i < featureCount - 1) {
+            file << delimiter;
+        }
+    }
+    file << delimiter << "target\n";
+    
+    // Записываем данные
     for (size_t i = 0; i < data.size(); ++i) {
         const DataPoint& point = data.get(i);
         const std::vector<double>& features = point.getFeatures();
         
-        if (features.size() < 2) {
-            throw std::runtime_error("DataPoint must have at least 2 features for CSV format");
+        for (size_t j = 0; j < features.size(); ++j) {
+            file << features[j];
+            if (j < features.size() - 1) {
+                file << delimiter;
+            }
         }
         
-        file << features[0] << delimiter 
-             << features[1] << delimiter
-             << point.getLabel();
+        file << delimiter << point.getLabel();
         
         if (i < data.size() - 1) {
             file << "\n";
@@ -145,17 +218,98 @@ void DataLoader::save(const DataSet& data) {
     }
 }
 
+size_t DataLoader::detectFeatureCount(const std::string& filename, char delimiter, bool hasHeader) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file: " + filename);
+    }
+    
+    std::string line;
+    
+    // Пропускаем заголовок если есть
+    if (hasHeader) {
+        if (!std::getline(file, line)) {
+            throw std::runtime_error("File is empty: " + filename);
+        }
+    }
+    
+    // Читаем первую строку данных
+    if (!std::getline(file, line)) {
+        throw std::runtime_error("No data lines in file: " + filename);
+    }
+    
+    // Считаем количество столбцов
+    std::stringstream ss(line);
+    std::string token;
+    size_t columnCount = 0;
+    
+    while (std::getline(ss, token, delimiter)) {
+        columnCount++;
+    }
+    
+    // Последний столбец — target, остальные — признаки
+    if (columnCount < 2) {
+        throw std::runtime_error("File must have at least 2 columns (features + target)");
+    }
+    
+    return columnCount - 1; // Минус target
+}
+
+bool DataLoader::hasHeaderRow(const std::string& filename, char delimiter) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file: " + filename);
+    }
+    
+    std::string line;
+    if (!std::getline(file, line)) {
+        return false;
+    }
+    
+    std::stringstream ss(line);
+    std::string token;
+    
+    while (std::getline(ss, token, delimiter)) {
+        size_t start = token.find_first_not_of(" \t\r\n");
+        size_t end = token.find_last_not_of(" \t\r\n");
+        if (start != std::string::npos) {
+            token = token.substr(start, end - start + 1);
+        }
+        
+        // Если хотя бы один токен содержит нецифровые символы (кроме точки и минуса), это заголовок
+        bool isNumeric = true;
+        bool hasDigit = false;
+        
+        for (char c : token) {
+            if (std::isdigit(c)) {
+                hasDigit = true;
+            } else if (c != '.' && c != '-' && c != '+' && c != 'e' && c != 'E') {
+                isNumeric = false;
+                break;
+            }
+        }
+        
+        if (!isNumeric || !hasDigit) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 DataSet DataLoader::loadFromCSV(const std::string& filename) {
-    DataLoader loader(filename, true, ',');
+    bool header = hasHeaderRow(filename);
+    DataLoader loader(filename, true, ',', header);
     return loader.load();
 }
 
 DataSet DataLoader::loadFromCSVNoLabels(const std::string& filename) {
-    DataLoader loader(filename, false, ',');
+    bool header = hasHeaderRow(filename);
+    DataLoader loader(filename, false, ',', header);
     return loader.load();
 }
 
 void DataLoader::saveToCSV(const DataSet& data, const std::string& filename) {
-    DataLoader loader(filename, true, ',');
+    DataLoader loader(filename, true, ',', true);
     loader.save(data);
 }

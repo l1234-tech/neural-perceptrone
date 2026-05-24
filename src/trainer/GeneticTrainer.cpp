@@ -1,6 +1,7 @@
 #include "trainer/GeneticTrainer.h"
 #include "neural_network/NeuralNetwork.h"
 #include "data/DataSet.h"
+#include "metrics/ClassificationMetrics.h"
 #include "utils/Random.h"
 #include <fstream>
 #include <iostream>
@@ -353,4 +354,34 @@ void GeneticTrainer::setParameters(size_t popSize, size_t maxGen, double mutRate
     mutationRate = mutRate;
     crossoverRate = crossRate;
     elitismRatio = eliteRatio;
+}
+
+ClassificationMetrics GeneticTrainer::evaluateMetrics(NeuralNetwork& network, const DataSet& data) const {
+    if (population.empty()) {
+        throw std::runtime_error("Популяция пуста");
+    }
+    
+    // Сохраняем текущие веса
+    std::vector<double> originalWeights = network.getWeights();
+    
+    // Устанавливаем лучшие веса
+    network.setWeights(population[0].chromosome);
+    
+    // Вычисляем метрики
+    ClassificationMetrics metrics = calculateMetrics(network, data);
+    
+    // Восстанавливаем оригинальные веса
+    network.setWeights(originalWeights);
+    
+    return metrics;
+}
+
+double GeneticTrainer::getBestF1Score() const {
+    if (population.empty()) {
+        return 0.0;
+    }
+    
+    // F1-score не хранится напрямую, но можно вычислить через evaluateMetrics
+    // Для простоты возвращаем 0, реальное значение будет вычисляться через evaluateMetrics
+    return 0.0;
 }

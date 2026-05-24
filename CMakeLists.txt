@@ -4,7 +4,7 @@ project(NeuralNetworkLab)
 set(CMAKE_CXX_STANDARD 17)
 
 # Пути к заголовочным файлам
-include_directories(include include/utils include/data include/neural_network include/trainer)
+include_directories(include include/utils include/data include/neural_network include/trainer include/metrics)
 
 # Библиотека (все .cpp файлы проекта)
 add_library(nn_lib
@@ -20,6 +20,7 @@ add_library(nn_lib
     src/neural_network/NeuralNetwork.cpp
     src/trainer/GeneticTrainer.cpp
     src/trainer/TrainerConfig.cpp
+    src/metrics/ClassificationMetrics.cpp
 )
 
 # Основной исполняемый файл
