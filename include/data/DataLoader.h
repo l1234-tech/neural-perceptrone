@@ -1,13 +1,14 @@
 #pragma once
 #include "data/DataSet.h"
 #include <string>
-#include <memory>
+#include <string>
 #include <fstream>
+#include <memory>
 
-// Базовый класс парсера строк 
-class DataParser {
+// Универсальный парсер CSV с произвольным количеством признаков
+class UniversalCSVParser {
 public:
-    virtual ~DataParser() = default;
+    virtual ~UniversalCSVParser() = default;
     virtual DataPoint parse(const std::string& line, char delimiter) const = 0;
     virtual bool validateLine(const std::string& line, char delimiter) const = 0;
 };
@@ -16,14 +17,15 @@ public:
 class DataLoader {
 private:
     std::string filename;
-    std::unique_ptr<DataParser> parser;
+    std::unique_ptr<UniversalCSVParser> parser;
     char delimiter;
+    bool hasHeader;
     
     std::ifstream openFileForReading() const;
     std::ofstream openFileForWriting() const;
     
 public:
-    DataLoader(const std::string& filename, bool hasLabels = true, char delimiter = ',');
+    DataLoader(const std::string& filename, bool hasLabels = true, char delimiter = ',', bool hasHeader = true);
     ~DataLoader() = default;
     
     // Запрещаем копирование
@@ -44,4 +46,8 @@ public:
     static DataSet loadFromCSV(const std::string& filename);
     static DataSet loadFromCSVNoLabels(const std::string& filename);
     static void saveToCSV(const DataSet& data, const std::string& filename);
+    
+    // Новые методы
+    static size_t detectFeatureCount(const std::string& filename, char delimiter = ',', bool hasHeader = true);
+    static bool hasHeaderRow(const std::string& filename, char delimiter = ',');
 };

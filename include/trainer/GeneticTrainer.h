@@ -2,6 +2,7 @@
 #include "trainer/ITrainer.h"
 #include "neural_network/NeuralNetwork.h"
 #include "data/DataSet.h"
+#include "metrics/ClassificationMetrics.h"
 #include "utils/Random.h"
 #include <vector>
 #include <memory>
@@ -66,4 +67,8 @@ public:
 
     void setParameters(size_t popSize, size_t maxGen, double mutRate, 
                       double crossRate, double eliteRatio);
+    
+    // Новые методы для работы с F1-метриками
+    ClassificationMetrics evaluateMetrics(NeuralNetwork& network, const DataSet& data) const;
+    double getBestF1Score() const;
 };
