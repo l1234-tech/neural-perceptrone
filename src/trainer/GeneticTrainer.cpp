@@ -10,23 +10,33 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <limits>
 
 GeneticTrainer::GeneticTrainer(size_t populationSize,
                                size_t maxGenerations,
                                double mutationRate,
                                double crossoverRate,
-                               double elitismRatio)
+                               double elitismRatio,
+                               double regularizationLambda,
+                               size_t earlyStoppingPatience,
+                               bool useF1Fitness)
     : populationSize(populationSize),
       maxGenerations(maxGenerations),
       mutationRate(mutationRate),
       crossoverRate(crossoverRate),
-      elitismRatio(elitismRatio) {
+      elitismRatio(elitismRatio),
+      regularizationLambda(regularizationLambda),
+      earlyStoppingPatience(earlyStoppingPatience),
+      useF1Fitness(useF1Fitness) {
     
     if (populationSize < 10) {
         throw std::invalid_argument("Размер популяции должен быть не менее 10");
     }
     if (elitismRatio < 0.0 || elitismRatio > 0.5) {
         throw std::invalid_argument("Доля элитных особей должна быть в диапазоне [0, 0.5]");
+    }
+    if (regularizationLambda < 0.0) {
+        throw std::invalid_argument("Коэффициент регуляризации должен быть неотрицательным");
     }
 }
 
@@ -55,10 +65,20 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
    
         network.setWeights(individual.chromosome);
         
-        // Вычисляем ошибку (loss) на обучающей выборке
-        individual.loss = network.computeLoss(trainingData);
-
-        individual.fitness = 1.0 / (individual.loss + 1e-8);
+        // Вычисляем ошибку (loss) на обучающей выборке с регуляризацией L2
+        individual.loss = network.computeLoss(trainingData, regularizationLambda);
+        
+        // ПРОСТАЯ fitness-функция: используем F1-score на валидации ИЛИ обратную ошибку
+        if (useF1Fitness && !validationData.empty()) {
+            // Используем F1-score на валидационной выборке как fitness
+            ClassificationMetrics metrics = calculateMetrics(network, validationData);
+            individual.f1Score = metrics.macroF1;
+            individual.fitness = individual.f1Score + 1e-8; // Добавляем epsilon для избежания нуля
+        } else {
+            // Используем обратную ошибку как fitness (традиционный подход)
+            individual.f1Score = 0.0;
+            individual.fitness = 1.0 / (individual.loss + 1e-8);
+        }
     }
     
     // Восстанавливаем оригинальные веса
@@ -143,8 +163,17 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     
     lossHistory.clear();
     bestLossHistory.clear();
+    validationLossHistory.clear();
+    validationF1History.clear();
+    
+    // Сохраняем валидационную выборку для вычисления F1
+    this->validationData = validationData;
     
     initializePopulation(network);
+    
+    size_t noImprovementCount = 0;
+    double bestValidationF1 = 0.0;
+    double bestValidationLoss = std::numeric_limits<double>::max();
     
     for (size_t generation = 0; generation < maxGenerations; ++generation) {
         // Оценка приспособленности
@@ -157,7 +186,6 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         for (const auto& ind : population) {
             avgLoss += ind.loss;
         }
-        
         avgLoss /= population.size();
         
         lossHistory.push_back(avgLoss);
@@ -168,27 +196,66 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
             std::cout << "Поколение " << std::setw(3) << generation 
                       << ": лучшая ошибка = " << std::fixed << std::setprecision(6) << bestLoss
                       << ", средняя ошибка = " << avgLoss 
-                      << ", лучшая fitness = " << std::setprecision(4) << population[0].fitness << std::endl;
+                      << ", лучшая fitness = " << std::setprecision(4) << population[0].fitness;
+            
+            if (useF1Fitness && !validationData.empty() && population[0].f1Score > 0) {
+                std::cout << ", F1 = " << std::setprecision(4) << population[0].f1Score;
+            }
+            std::cout << std::endl;
+        }
+        
+        // Ранняя остановка по валидации (если есть валидационные данные)
+        if (!validationData.empty()) {
+            std::vector<double> originalWeights = network.getWeights();
+            network.setWeights(population[0].chromosome);
+            
+            // Вычисляем ошибку на валидации
+            double validationLoss = network.computeLoss(validationData, 0.0); // без регуляризации для оценки
+            validationLossHistory.push_back(validationLoss);
+            
+            // Вычисляем F1-score на валидации
+            ClassificationMetrics metrics = calculateMetrics(network, validationData);
+            double validationF1 = metrics.macroF1;
+            validationF1History.push_back(validationF1);
+            
+            network.setWeights(originalWeights);
+            
+            // Ранняя остановка по F1 (если используем F1 как fitness)
+            if (useF1Fitness) {
+                if (validationF1 > bestValidationF1) {
+                    bestValidationF1 = validationF1;
+                    noImprovementCount = 0;
+                } else {
+                    noImprovementCount++;
+                }
+            } else {
+                // Ранняя остановка по loss
+                if (validationLoss < bestValidationLoss) {
+                    bestValidationLoss = validationLoss;
+                    noImprovementCount = 0;
+                } else {
+                    noImprovementCount++;
+                }
+            }
+            
+            if (noImprovementCount >= earlyStoppingPatience) {
+                std::cout << "Ранняя остановка: нет улучшений на валидации в течение " 
+                          << earlyStoppingPatience << " поколений" << std::endl;
+                break;
+            }
         }
         
         tournamentSelection();
-        
         uniformCrossover();
-        
         simpleMutation();
-
-        if (bestLoss < 0.05) {
-            std::cout << "Ранняя остановка: достигнута достаточная точность (loss < 0.05)" << std::endl;
-            break;
-        }
     }
     
     // Устанавливаем лучшие веса в сеть
     network.setWeights(population[0].chromosome);
     
     // Оцениваем на валидационной выборке, если она предоставлена
-    if (!validationData.empty()) {
-        double validationLoss = network.computeLoss(validationData);
+    if (!validationData.empty() && validationLossHistory.empty()) {
+        double validationLoss = network.computeLoss(validationData, 0.0);
         std::cout << "Ошибка на валидационной выборке: " << validationLoss << std::endl;
     }
     
@@ -203,7 +270,10 @@ std::string GeneticTrainer::getConfig() const {
        << "  Вероятность мутации: " << mutationRate << "\n"
        << "  Вероятность скрещивания: " << crossoverRate << "\n"
        << "  Доля элитных особей: " << elitismRatio << "\n"
-       << "  Текущий размер популяции: " << population.size() << "\n"
+       << "  Коэффициент регуляризации L2: " << regularizationLambda << "\n"
+       << "  Терпение ранней остановки: " << earlyStoppingPatience << "\n"
+       << "  Использовать F1 как fitness: " << (useF1Fitness ? "да" : "нет") << "\n"
+       << "  Текущий р��змер популяции: " << population.size() << "\n"
        << "  История ошибок: " << lossHistory.size() << " записей";
     
     return ss.str();
@@ -217,12 +287,13 @@ void GeneticTrainer::saveState(const std::string& filename) const {
     
     file << populationSize << " " << maxGenerations << " "
          << mutationRate << " " << crossoverRate << " " 
-         << elitismRatio << "\n";
+         << elitismRatio << " " << regularizationLambda << " "
+         << earlyStoppingPatience << " " << (useF1Fitness ? 1 : 0) << "\n";
     
     file << population.size() << "\n";
     for (const auto& ind : population) {
         file << ind.chromosome.size() << " " 
-             << ind.fitness << " " << ind.loss << "\n";
+             << ind.fitness << " " << ind.loss << " " << ind.f1Score << "\n";
         for (double gene : ind.chromosome) {
             file << gene << " ";
         }
@@ -241,6 +312,18 @@ void GeneticTrainer::saveState(const std::string& filename) const {
     }
     file << "\n";
     
+    file << validationLossHistory.size() << "\n";
+    for (double loss : validationLossHistory) {
+        file << loss << " ";
+    }
+    file << "\n";
+    
+    file << validationF1History.size() << "\n";
+    for (double f1 : validationF1History) {
+        file << f1 << " ";
+    }
+    file << "\n";
+    
     file.close();
 }
 
@@ -250,8 +333,11 @@ void GeneticTrainer::loadState(const std::string& filename) {
         throw std::runtime_error("Не удалось открыть файл для загрузки: " + filename);
     }
     
+    int useF1Int;
     file >> populationSize >> maxGenerations >> mutationRate 
-         >> crossoverRate >> elitismRatio;
+         >> crossoverRate >> elitismRatio >> regularizationLambda
+         >> earlyStoppingPatience >> useF1Int;
+    useF1Fitness = (useF1Int != 0);
     
     size_t popSize;
     file >> popSize;
@@ -261,12 +347,13 @@ void GeneticTrainer::loadState(const std::string& filename) {
     
     for (size_t i = 0; i < popSize; ++i) {
         size_t chromSize;
-        double fitness, loss;
-        file >> chromSize >> fitness >> loss;
+        double fitness, loss, f1Score;
+        file >> chromSize >> fitness >> loss >> f1Score;
         
         GeneticIndividual ind(chromSize);
         ind.fitness = fitness;
         ind.loss = loss;
+        ind.f1Score = f1Score;
         
         for (size_t j = 0; j < chromSize; ++j) {
             file >> ind.chromosome[j];
@@ -297,6 +384,28 @@ void GeneticTrainer::loadState(const std::string& filename) {
         bestLossHistory.push_back(loss);
     }
     
+    size_t validationLossHistorySize;
+    file >> validationLossHistorySize;
+    
+    validationLossHistory.clear();
+    validationLossHistory.reserve(validationLossHistorySize);
+    for (size_t i = 0; i < validationLossHistorySize; ++i) {
+        double loss;
+        file >> loss;
+        validationLossHistory.push_back(loss);
+    }
+    
+    size_t validationF1HistorySize;
+    file >> validationF1HistorySize;
+    
+    validationF1History.clear();
+    validationF1History.reserve(validationF1HistorySize);
+    for (size_t i = 0; i < validationF1HistorySize; ++i) {
+        double f1;
+        file >> f1;
+        validationF1History.push_back(f1);
+    }
+    
     file.close();
 }
 
@@ -306,6 +415,10 @@ std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
     if (!population.empty()) {
         metrics.emplace_back("Лучшая приспособленность", population[0].fitness);
         metrics.emplace_back("Лучшая ошибка", population[0].loss);
+        
+        if (useF1Fitness && !validationData.empty()) {
+            metrics.emplace_back("Лучший F1-score", population[0].f1Score);
+        }
         
         double avgFitness = 0.0;
         for (const auto& ind : population) {
@@ -323,6 +436,16 @@ std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
             double improvement = (lossHistory[0] - lossHistory.back()) / lossHistory[0] * 100.0;
             metrics.emplace_back("Улучшение ошибки (%)", improvement);
         }
+    }
+    
+    if (!validationLossHistory.empty()) {
+        metrics.emplace_back("Лучшая валидационная ошибка", *std::min_element(validationLossHistory.begin(), validationLossHistory.end()));
+        metrics.emplace_back("Финальная валидационная ошибка", validationLossHistory.back());
+    }
+    
+    if (!validationF1History.empty()) {
+        metrics.emplace_back("Лучший валидационный F1", *std::max_element(validationF1History.begin(), validationF1History.end()));
+        metrics.emplace_back("Финальный валидационный F1", validationF1History.back());
     }
     
     metrics.emplace_back("Размер популяции", static_cast<double>(population.size()));
@@ -345,6 +468,14 @@ double GeneticTrainer::getBestLoss() const {
     }
     
     return population[0].loss;
+}
+
+double GeneticTrainer::getBestF1Score() const {
+    if (population.empty()) {
+        return 0.0;
+    }
+    
+    return population[0].f1Score;
 }
 
 void GeneticTrainer::setParameters(size_t popSize, size_t maxGen, double mutRate,
@@ -374,14 +505,4 @@ ClassificationMetrics GeneticTrainer::evaluateMetrics(NeuralNetwork& network, co
     network.setWeights(originalWeights);
     
     return metrics;
-}
-
-double GeneticTrainer::getBestF1Score() const {
-    if (population.empty()) {
-        return 0.0;
-    }
-    
-    // F1-score не хранится напрямую, но можно вычислить через evaluateMetrics
-    // Для простоты возвращаем 0, реальное значение будет вычисляться через evaluateMetrics
-    return 0.0;
 }

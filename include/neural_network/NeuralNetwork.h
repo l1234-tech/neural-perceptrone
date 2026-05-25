@@ -41,4 +41,10 @@ public:
     int predict(const Vector& input) const;
 
     double computeLoss(const DataSet& dataset) const;
+    
+    // Новая версия с регуляризацией L2
+    double computeLoss(const DataSet& dataset, double lambda) const;
+    
+    // Вычисление штрафа за веса (L2 регуляризация)
+    double computeWeightPenalty(double lambda) const;
 };

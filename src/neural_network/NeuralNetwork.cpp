@@ -220,6 +220,22 @@ int NeuralNetwork::predict(const Vector& input) const {
 }
 
 double NeuralNetwork::computeLoss(const DataSet& dataset) const {
+    // Вызов новой версии с нулевой регуляризацией для обратной совместимости
+    return computeLoss(dataset, 0.0);
+}
+
+double NeuralNetwork::computeWeightPenalty(double lambda) const {
+    if (lambda <= 0.0) return 0.0;
+    
+    double penalty = 0.0;
+    std::vector<double> weights = getWeights();
+    for (double w : weights) {
+        penalty += w * w;
+    }
+    return 0.5 * lambda * penalty;
+}
+
+double NeuralNetwork::computeLoss(const DataSet& dataset, double lambda) const {
     if (dataset.empty()) {
         return 0.0;
     }
@@ -254,5 +270,8 @@ double NeuralNetwork::computeLoss(const DataSet& dataset) const {
         totalLoss += computeLoss(output, target);
     }
     
-    return totalLoss / dataset.size();
+    double averageLoss = totalLoss / dataset.size();
+    double penalty = computeWeightPenalty(lambda);
+    
+    return averageLoss + penalty;
 }
