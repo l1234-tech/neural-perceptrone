@@ -17,9 +17,23 @@ void printHeader(const std::string& title) {
     std::cout << std::string(60, '=') << "\n";
 }
 
-NeuralNetwork createNetwork(size_t featureCount) {
-    // Упрощенная архитектура для борьбы с переобучением: [featureCount, 2, 1]
-    std::vector<size_t> architecture = {featureCount, 2, 1};
+NeuralNetwork createNetwork(size_t featureCount, const std::string& datasetHint = "") {
+    // Упрощенные архитектуры для борьбы с переобучением
+    std::vector<size_t> architecture;
+    
+    if (featureCount == 2) {
+        // Для датасетов с 2 признаками (train.csv, d1.csv)
+        // Простая архитектура: [2, 3, 1] - всего 13 параметров
+        architecture = {2, 3, 1};
+    } else if (featureCount == 4) {
+        // Для датасетов с 4 признаками (d2.csv)
+        // Архитектура: [4, 4, 1] - всего 25 параметров
+        architecture = {4, 4, 1};
+    } else {
+        // По умолчанию: [featureCount, 2, 1]
+        architecture = {featureCount, 2, 1};
+    }
+    
     NeuralNetwork network(architecture);
     
     std::cout << "Архитектура сети: [";
@@ -124,16 +138,19 @@ void createTrainTestFiles() {
     }
 }
 
-NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const DataSet& testData) {
-    printHeader("ОБУЧЕНИЕ МОДЕЛИ");
+NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const DataSet& testData, const std::string& datasetName = "") {
+    printHeader("ОБУЧЕНИЕ МОДЕЛИ" + (datasetName.empty() ? "" : " (" + datasetName + ")"));
     
-    // Уменьшено количество поколений и увеличен шанс мутации для борьбы с переобучением
+    // Улучшенный генетический алгоритм с регуляризацией, ранней остановкой и F1 как fitness
     GeneticTrainer trainer(
-        150,   // размер популяции 
-        50,    // максимальное число поколений (уменьшено)
-        0.3,   // вероятность мутации (увеличена)
-        0.8,   // вероятность скрещивания
-        0.1    // доля элитных особей 
+        200,   // размер популяции (увеличено для большего разнообразия)
+        100,   // максимальное число поколений (увеличено)
+        0.4,   // вероятность мутации (увеличена)
+        0.9,   // вероятность скрещивания (увеличена)
+        0.05,  // доля элитных особей (уменьшена)
+        0.1,   // коэффициент L2 регуляризации (увеличен для борьбы с переобучением)
+        20,    // терпение ранней остановки (увеличено)
+        true   // использовать F1-score как fitness
     );
     
     std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
@@ -164,6 +181,12 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
                           << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
             }
         }
+    }
+    
+    // Выводим лучший F1-score, если он вычислялся
+    double bestF1 = trainer.getBestF1Score();
+    if (bestF1 > 0) {
+        std::cout << "Лучший F1-score на валидации: " << std::fixed << std::setprecision(4) << bestF1 << "\n";
     }
     
     return network;
@@ -198,8 +221,8 @@ int main() {
         DataSet trainTrainData = loadDataset("data/train_train.csv", true);
         // Для валидации используем часть обучающих данных (20% от 80% = 16% от общего)
         auto [trainData1, valData1] = trainTrainData.split(0.8);
-        NeuralNetwork network1 = createNetwork(trainData1.getFeatureCount());
-        trainModel(network1, trainData1, valData1);
+        NeuralNetwork network1 = createNetwork(trainData1.getFeatureCount(), "train");
+        trainModel(network1, trainData1, valData1, "train.csv");
         
         // Датасет d1.csv (2 признака) - используем обучающую часть
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -209,8 +232,8 @@ int main() {
         // Загружаем обучающие данные (80%)
         DataSet d1TrainData = loadDataset("data/d1_train.csv", true);
         auto [trainData2, valData2] = d1TrainData.split(0.8);
-        NeuralNetwork network2 = createNetwork(trainData2.getFeatureCount());
-        trainModel(network2, trainData2, valData2);
+        NeuralNetwork network2 = createNetwork(trainData2.getFeatureCount(), "d1");
+        trainModel(network2, trainData2, valData2, "d1.csv");
         
         // Датасет d2.csv (4 признака) - используем обучающую часть
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -220,8 +243,8 @@ int main() {
         // Загружаем обучающие данные (80%)
         DataSet d2TrainData = loadDataset("data/d2_train.csv", true);
         auto [trainData3, valData3] = d2TrainData.split(0.8);
-        NeuralNetwork network3 = createNetwork(trainData3.getFeatureCount());
-        trainModel(network3, trainData3, valData3);
+        NeuralNetwork network3 = createNetwork(trainData3.getFeatureCount(), "d2");
+        trainModel(network3, trainData3, valData3, "d2.csv");
         
         // ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ФАЙЛАХ БЕЗ МЕТОК (20%)
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -259,7 +282,7 @@ int main() {
             }
             std::cout << "\nВсего сделано предсказаний: " << testDataset.size() << "\n";
         } else {
-            std::cout << "Ошибка: количество п��изнаков в test.csv (" << testDataset.getFeatureCount() 
+            std::cout << "Ошибка: количество признаков в test.csv (" << testDataset.getFeatureCount() 
                       << ") не совпадает с входным размером модели (" << network1.getArchitecture()[0] << ")\n";
         }
         
