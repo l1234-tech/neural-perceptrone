@@ -44,7 +44,7 @@ double DataSet::computeAccuracy(NeuralNetwork& net) const {
 }
 
 std::pair<DataSet, DataSet> DataSet::split(double ratio) const {
-    if (ratio <= 0.0 || ratio >= 1.0) {
+    if (ratio < 0.0 || ratio > 1.0) {
         throw std::invalid_argument("Ratio must be between 0 and 1");
     }
     
@@ -52,6 +52,11 @@ std::pair<DataSet, DataSet> DataSet::split(double ratio) const {
     shuffled.shuffle();
     
     size_t trainSize = static_cast<size_t>(shuffled.size() * ratio);
+    // При ratio == 1.0 trainSize может быть меньше размера из-за округления
+    if (ratio == 1.0) {
+        trainSize = shuffled.size();
+    }
+    // При ratio == 0.0 trainSize уже 0
     
     DataSet trainSet;
     DataSet testSet;

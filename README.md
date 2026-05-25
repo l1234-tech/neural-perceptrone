@@ -1,11 +1,16 @@
-## Команда ГиКи: нейронная сеть , 1 + 2 лабы
----
-## Структура проекта:
+# Нейронная сеть для классификации данных
 
+Проект реализует нейронную сеть с возможностью обучения генетическим алгоритмом и градиентным спуском. Включает инструменты для работы с данными, визуализации и оценки качества моделей.
+
+## Структура проекта
+
+```
 ai-project/
-├── CMakeLists.txt              # Файл requirements
-├── README.md                   # Документация и описание
-├── main.cpp
+├── CMakeLists.txt              # Конфигурация сборки CMake
+├── README.md                   # Документация
+├── main.cpp                    # Основная программа для демонстрации
+├── requirements.txt            # Зависимости Python (для скриптов)
+├── questions                   # Вопросы по проекту
 │
 ├── include/                    # Заголовочные файлы
 │   ├── neural_network/
@@ -15,19 +20,26 @@ ai-project/
 │   │
 │   ├── trainer/
 │   │   ├── GeneticTrainer.h   # Генетический алгоритм обучения
-│   │   ├── ITrainer.h         # Интерфейс тренера (абстрактный класс)
+│   │   ├── GradientTrainer.h  # Градиентный спуск
+│   │   ├── ITrainer.h         # Интерфейс тренера
 │   │   └── TrainerConfig.h    # Конфигурация обучения
 │   │
 │   ├── data/
 │   │   ├── DataSet.h          # Структура данных
 │   │   ├── DataPoint.h        # Одна точка данных
-│   │   └── DataLoader.h       # Загрузка из файла
-│   │   └── XORDataGenerator.h       # создание точек
+│   │   ├── DataLoader.h       # Загрузка из файла
+│   │   └── XORDataGenerator.h # Генератор XOR данных
 │   │
-│   └── utils/
-│       ├── Matrix.h           # Матричные операции
-│       ├── Vector.h           # Векторные операции
-│       └── Random.h           # Генерация случайных чисел
+│   ├── utils/
+│   │   ├── Matrix.h           # Матричные операции
+│   │   ├── Vector.h           # Векторные операции
+│   │   └── Random.h           # Генерация случайных чисел
+│   │
+│   ├── metrics/
+│   │   └── ClassificationMetrics.h # Метрики классификации
+│   │
+│   └── visualization/
+│       └── Visualizer.h        # Визуализация данных и результатов
 │
 ├── src/                        # Реализация (cpp файлы)
 │   ├── neural_network/
@@ -38,28 +50,191 @@ ai-project/
 │   │
 │   ├── trainer/
 │   │   ├── GeneticTrainer.cpp
+│   │   ├── GradientTrainer.cpp
 │   │   └── TrainerConfig.cpp
 │   │
 │   ├── data/
 │   │   ├── DataSet.cpp
 │   │   ├── DataPoint.cpp
-│   │   └── DataLoader.cpp
+│   │   ├── DataLoader.cpp
 │   │   └── XORDataGenerator.cpp
 │   │
-│   └── utils/
+│   ├── utils/
 │       ├── Matrix.cpp
 │       ├── Vector.cpp
 │       └── Random.cpp
+│   │
+│   ├── metrics/
+│   │   └── ClassificationMetrics.cpp
+│   │
+│   └── visualization/
+│       └── Visualizer.cpp
 │
-├── tests/
-│   ├── test_genetic_trainer.cpp
-│   ├── test_activation.cpp
-│   ├── test_vector.cpp
+├── tests/                      # Модульные тесты
+│   ├── test_main.cpp          # Главный запускатель тестов
 │   ├── test_matrix.cpp
-│   ├── test_main.cpp
+│   ├── test_vector.cpp
+│   ├── test_activation.cpp
+│   ├── test_genetic_trainer.cpp
+│   ├── test_gradient_trainer.cpp
+│   ├── test_data_loader.cpp
+│   ├── test_data_set.cpp
+│   ├── test_classification_metrics.cpp
+│   └── test_visualization.cpp
+│
+├── scripts/                    # Скрипты Python
+│   └── run_model.py           # Скрипт для обучения и визуализации
 │
 ├── data/                       # Данные для обучения
 │   ├── train.csv              # Обучающая выборка
-│   ├── test.csv               # Тестовая выборка
-├── .sourcecraft/                       # Данные для обучения
-│   ├── ci.yaml              # ci/cd для запуска тестов при пуше в майн или пул реквест
+│   └── test.csv               # Тестовая выборка
+│
+└── .sourcecraft/               # Конфигурация SourceCraft CI/CD
+    └── ci.yaml                # CI/CD для запуска тестов
+```
+
+## Сборка проекта
+
+### Требования
+- Компилятор C++ с поддержкой C++17 (g++ >= 7, clang >= 5, MSVC >= 2017)
+- CMake >= 3.10
+- Python 3.8+ (для скриптов визуализации)
+- Библиотеки Python: numpy, matplotlib, scikit-learn (установить через `pip install -r requirements.txt`)
+
+### Сборка с помощью CMake
+
+```bash
+# Клонирование репозитория (если нужно)
+git clone <repository-url>
+cd ai-project
+
+# Создание директории сборки
+mkdir build
+cd build
+
+# Конфигурация проекта
+cmake ..
+
+# Сборка
+make -j4
+
+# Запуск тестов
+./test_runner
+```
+
+### Сборка в Windows (Visual Studio)
+
+```bash
+mkdir build
+cd build
+cmake .. -G "Visual Studio 16 2019"
+cmake --build . --config Release
+```
+
+## Использование
+
+### Запуск основной программы
+
+Собранная программа `main` (или `main.exe` в Windows) демонстрирует возможности библиотеки:
+
+```bash
+./build/main
+```
+
+Программа выполняет:
+1. Создание тестового датасета XOR
+2. Обучение нейронной сети генетическим алгоритмом
+3. Обучение градиентным спуском
+4. Вывод метрик классификации
+5. Генерацию скриптов для визуализации
+
+### Запуск Python скрипта
+
+Скрипт `scripts/run_model.py` предоставляет более гибкий интерфейс:
+
+```bash
+cd scripts
+python run_model.py --help
+```
+
+Основные параметры:
+- `--train` – путь к обучающим данным (CSV)
+- `--test` – путь к тестовым данным (CSV)
+- `--visualize` – включить визуализацию
+- `--model` – тип модели (`genetic` или `gradient`)
+- `--epochs` – количество эпох обучения
+
+Пример:
+```bash
+python run_model.py --train ../data/train.csv --test ../data/test.csv --visualize --model genetic
+```
+
+## Визуализация датасетов и результатов
+
+Проект включает модуль визуализации, который позволяет генерировать графики для анализа данных и результатов обучения.
+
+### Генерация визуализаций
+
+1. **2D визуализация датасета и границы решения**:
+   ```cpp
+   #include "visualization/Visualizer.h"
+   // ...
+   Visualizer::plot2D(dataset, neuralNetwork, "output_2d.png");
+   ```
+   Метод создаёт CSV файлы с данными и границей решения, а также Python скрипт `visualize_2d.py` для построения графика.
+
+2. **График истории обучения**:
+   ```cpp
+   std::vector<double> lossHistory = trainer.train(...);
+   Visualizer::plotTrainingHistory(lossHistory, "training_history.png");
+   ```
+   Генерирует CSV файл с историей ошибок и скрипт `visualize_history.py`.
+
+3. **Многомерная визуализация (PCA/t-SNE)**:
+   ```cpp
+   Visualizer::plotMultiDimensional(dataset, neuralNetwork, "pca_visualization.png");
+   ```
+   *Заглушка для будущей реализации.*
+
+### Запуск скриптов визуализации
+
+После вызова методов визуализации в папке сборки появятся CSV файлы и Python скрипты. Для построения графиков выполните:
+
+```bash
+# Для 2D визуализации
+python3 visualize_2d.py
+
+# Для истории обучения
+python3 visualize_history.py
+```
+
+Скрипты создадут изображения в формате PNG, которые можно использовать в отчётах.
+
+### Примеры визуализаций
+
+Ниже приведены примеры графиков, которые можно получить с помощью библиотеки:
+
+1. **2D датасет с границей решения** – показывает, как нейронная сеть разделяет классы в двумерном пространстве.
+2. **График истории обучения** – отображает изменение ошибки в процессе обучения.
+3. **Многомерная визуализация (PCA)** – проекция многомерных данных на две главные компоненты.
+
+*Для добавления реальных изображений поместите файлы PNG в папку `docs/images` и укажите ссылки в этом разделе.*
+
+## Тестирование
+
+Проект включает модульные тесты для всех основных компонентов. Для запуска тестов:
+
+```bash
+cd build
+./test_runner
+```
+
+Или используйте CI/CD конфигурацию SourceCraft, которая автоматически запускает тесты при каждом push и pull request.
+
+## CI/CD
+
+Конфигурация CI/CD находится в `.sourcecraft/ci.yaml`. При каждом изменении кода автоматически запускается сборка и тесты. Результаты можно просмотреть в интерфейсе SourceCraft.
+
+## Лицензия
+
+Проект создан в учебных целях. Используйте код свободно с указанием авторства.
