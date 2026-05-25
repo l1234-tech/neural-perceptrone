@@ -68,7 +68,7 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
         // Вычисляем ошибку (loss) на обучающей выборке с регуляризацией L2
         individual.loss = network.computeLoss(trainingData, regularizationLambda);
         
-        // Вычисляем приспособленность (fitness)
+        // ПРОСТАЯ fitness-функция: используем F1-score на валидации ИЛИ обратную ошибку
         if (useF1Fitness && !validationData.empty()) {
             // Используем F1-score на валидационной выборке как fitness
             ClassificationMetrics metrics = calculateMetrics(network, validationData);
@@ -172,8 +172,8 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     initializePopulation(network);
     
     size_t noImprovementCount = 0;
-    double bestValidationLoss = std::numeric_limits<double>::max();
     double bestValidationF1 = 0.0;
+    double bestValidationLoss = std::numeric_limits<double>::max();
     
     for (size_t generation = 0; generation < maxGenerations; ++generation) {
         // Оценка приспособленности
@@ -248,12 +248,6 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         tournamentSelection();
         uniformCrossover();
         simpleMutation();
-
-        // Существующее условие ранней остановки по точности
-        if (bestLoss < 0.05) {
-            std::cout << "Ранняя остановка: достигнута достаточная точность (loss < 0.05)" << std::endl;
-            break;
-        }
     }
     
     // Устанавливаем лучшие веса в сеть
@@ -279,7 +273,7 @@ std::string GeneticTrainer::getConfig() const {
        << "  Коэффициент регуляризации L2: " << regularizationLambda << "\n"
        << "  Терпение ранней остановки: " << earlyStoppingPatience << "\n"
        << "  Использовать F1 как fitness: " << (useF1Fitness ? "да" : "нет") << "\n"
-       << "  Текущий размер популяции: " << population.size() << "\n"
+       << "  Текущий р��змер популяции: " << population.size() << "\n"
        << "  История ошибок: " << lossHistory.size() << " записей";
     
     return ss.str();
@@ -462,7 +456,7 @@ std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
 
 GeneticIndividual GeneticTrainer::getBestIndividual() const {
     if (population.empty()) {
-        throw std::runtime_error("Популяц��я пуста");
+        throw std::runtime_error("Популяция пуста");
     }
     
     return population[0];
