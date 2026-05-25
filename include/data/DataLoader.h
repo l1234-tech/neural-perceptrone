@@ -38,6 +38,7 @@ public:
     
     DataSet load();
     void save(const DataSet& data);
+    void saveNoLabels(const DataSet& data);
     
     void setDelimiter(char newDelimiter) { delimiter = newDelimiter; }
     char getDelimiter() const { return delimiter; }
@@ -46,6 +47,7 @@ public:
     static DataSet loadFromCSV(const std::string& filename);
     static DataSet loadFromCSVNoLabels(const std::string& filename);
     static void saveToCSV(const DataSet& data, const std::string& filename);
+    static void saveToCSVNoLabels(const DataSet& data, const std::string& filename);
     
     // Новые методы
     static size_t detectFeatureCount(const std::string& filename, char delimiter = ',', bool hasHeader = true);

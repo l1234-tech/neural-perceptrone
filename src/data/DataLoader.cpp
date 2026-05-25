@@ -19,8 +19,8 @@ public:
         // Читаем все значения через запятую
         while (std::getline(ss, token, delimiter)) {
             // Убираем пробелы в начале и конце
-            size_t start = token.find_first_not_of(" \t\r\n");
-            size_t end = token.find_last_not_of(" \t\r\n");
+            size_t start = token.find_first_not_of(" 	\r\n");
+            size_t end = token.find_last_not_of(" 	\r\n");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
             }
@@ -52,8 +52,8 @@ public:
         std::vector<double> values;
         
         while (std::getline(ss, token, delimiter)) {
-            size_t start = token.find_first_not_of(" \t\r\n");
-            size_t end = token.find_last_not_of(" \t\r\n");
+            size_t start = token.find_first_not_of(" 	\r\n");
+            size_t end = token.find_last_not_of(" 	\r\n");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
             }
@@ -77,8 +77,8 @@ public:
         std::vector<double> features;
         
         while (std::getline(ss, token, delimiter)) {
-            size_t start = token.find_first_not_of(" \t\r\n");
-            size_t end = token.find_last_not_of(" \t\r\n");
+            size_t start = token.find_first_not_of(" 	\r\n");
+            size_t end = token.find_last_not_of(" 	\r\n");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
             }
@@ -100,8 +100,8 @@ public:
         std::string token;
         
         while (std::getline(ss, token, delimiter)) {
-            size_t start = token.find_first_not_of(" \t\r\n");
-            size_t end = token.find_last_not_of(" \t\r\n");
+            size_t start = token.find_first_not_of(" 	\r\n");
+            size_t end = token.find_last_not_of(" 	\r\n");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
             }
@@ -218,6 +218,41 @@ void DataLoader::save(const DataSet& data) {
     }
 }
 
+void DataLoader::saveNoLabels(const DataSet& data) {
+    if (data.empty()) {
+        throw std::runtime_error("Cannot save empty dataset to file: " + filename);
+    }
+    
+    std::ofstream file = openFileForWriting();
+    
+    // Записываем заголовок
+    size_t featureCount = data.getFeatureCount();
+    for (size_t i = 0; i < featureCount; ++i) {
+        file << "feature_" << i;
+        if (i < featureCount - 1) {
+            file << delimiter;
+        }
+    }
+    file << "\n";
+    
+    // Записываем данные (только признаки)
+    for (size_t i = 0; i < data.size(); ++i) {
+        const DataPoint& point = data.get(i);
+        const std::vector<double>& features = point.getFeatures();
+        
+        for (size_t j = 0; j < features.size(); ++j) {
+            file << features[j];
+            if (j < features.size() - 1) {
+                file << delimiter;
+            }
+        }
+        
+        if (i < data.size() - 1) {
+            file << "\n";
+        }
+    }
+}
+
 size_t DataLoader::detectFeatureCount(const std::string& filename, char delimiter, bool hasHeader) {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -270,8 +305,8 @@ bool DataLoader::hasHeaderRow(const std::string& filename, char delimiter) {
     std::string token;
     
     while (std::getline(ss, token, delimiter)) {
-        size_t start = token.find_first_not_of(" \t\r\n");
-        size_t end = token.find_last_not_of(" \t\r\n");
+        size_t start = token.find_first_not_of(" 	\r\n");
+        size_t end = token.find_last_not_of(" 	\r\n");
         if (start != std::string::npos) {
             token = token.substr(start, end - start + 1);
         }
@@ -312,4 +347,9 @@ DataSet DataLoader::loadFromCSVNoLabels(const std::string& filename) {
 void DataLoader::saveToCSV(const DataSet& data, const std::string& filename) {
     DataLoader loader(filename, true, ',', true);
     loader.save(data);
+}
+
+void DataLoader::saveToCSVNoLabels(const DataSet& data, const std::string& filename) {
+    DataLoader loader(filename, false, ',', true);
+    loader.saveNoLabels(data);
 }
