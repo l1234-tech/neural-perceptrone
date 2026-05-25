@@ -4,7 +4,7 @@ project(NeuralNetworkLab)
 set(CMAKE_CXX_STANDARD 17)
 
 # Пути к заголовочным файлам
-include_directories(include include/utils include/data include/neural_network include/trainer include/metrics)
+include_directories(include include/utils include/data include/neural_network include/trainer include/metrics include/visualization)
 
 # Библиотека (все .cpp файлы проекта)
 add_library(nn_lib
@@ -22,6 +22,7 @@ add_library(nn_lib
     src/trainer/GradientTrainer.cpp
     src/trainer/TrainerConfig.cpp
     src/metrics/ClassificationMetrics.cpp
+    src/visualization/Visualizer.cpp
 )
 
 # Основной исполняемый файл
@@ -37,6 +38,10 @@ add_executable(test_runner
     tests/test_vector.cpp
     tests/test_activation.cpp
     tests/test_genetic_trainer.cpp
+    tests/test_gradient_trainer.cpp
+    tests/test_data_loader.cpp
+    tests/test_data_set.cpp
+    tests/test_classification_metrics.cpp
 )
 
 # Связать тесты с библиотекой

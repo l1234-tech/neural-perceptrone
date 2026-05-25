@@ -93,7 +93,104 @@ DataSet loadDataset(const std::string& filename, bool hasLabels = true) {
     return dataset;
 }
 
-NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const std::string& datasetName, TrainingAlgorithm algorithm) {
+void savePredictionsToCSV(const NeuralNetwork& network, const DataSet& dataset, 
+                         const std::string& filename, const std::string& datasetName) {
+    // Создаем директорию results, если она не существует
+    std::filesystem::create_directory("results");
+    
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть файл для записи: " << filename << "\n";
+        return;
+    }
+    
+    // Заголовок CSV
+    file << "dataset,features,prediction\n";
+    
+    for (size_t i = 0; i < dataset.size(); ++i) {
+        const auto& point = dataset.get(i);
+        const auto& features = point.getFeatures();
+        
+        // Создаем Vector из features
+        Vector input(features.size());
+        for (size_t j = 0; j < features.size(); ++j) {
+            input[j] = features[j];
+        }
+        
+        int prediction = network.predict(input);
+        
+        // Записываем данные
+        file << datasetName << ",";
+        
+        // Записываем признаки
+        for (size_t j = 0; j < features.size(); ++j) {
+            file << features[j];
+            if (j < features.size() - 1) file << ";";
+        }
+        
+        file << "," << prediction << "\n";
+    }
+    
+    file.close();
+    std::cout << "✓ Предсказания сохранены в: " << filename << "\n";
+}
+
+void saveMetricsToCSV(const ClassificationMetrics& metrics, const std::string& filename, 
+                     const std::string& datasetName, const std::string& algorithmName) {
+    // Создаем директорию results, если она не существует
+    std::filesystem::create_directory("results");
+    
+    std::ofstream file(filename, std::ios::app); // Добавляем в конец файла
+    if (!file.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть файл для записи: " << filename << "\n";
+        return;
+    }
+    
+    // Если файл пустой, добавляем заголовок
+    if (file.tellp() == 0) {
+        file << "dataset,algorithm,accuracy,macro_f1,weighted_f1,macro_precision,macro_recall,total_samples\n";
+    }
+    
+    // Записываем метрики
+    file << datasetName << ","
+         << algorithmName << ","
+         << metrics.accuracy << ","
+         << metrics.macroF1 << ","
+         << metrics.weightedF1 << ","
+         << metrics.macroPrecision << ","
+         << metrics.macroRecall << ","
+         << metrics.totalSamples << "\n";
+    
+    file.close();
+}
+
+void saveTrainingHistoryToCSV(const std::vector<double>& history, const std::string& filename,
+                             const std::string& datasetName, const std::string& algorithmName) {
+    // Создаем директорию results, если она не существует
+    std::filesystem::create_directory("results");
+    
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть файл для записи: " << filename << "\n";
+        return;
+    }
+    
+    // Заголовок CSV
+    file << "dataset,algorithm,generation,loss\n";
+    
+    for (size_t i = 0; i < history.size(); ++i) {
+        file << datasetName << ","
+             << algorithmName << ","
+             << i << ","
+             << history[i] << "\n";
+    }
+    
+    file.close();
+    std::cout << "✓ История обучения сохранена в: " << filename << "\n";
+}
+
+NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const std::string& datasetName, 
+                        TrainingAlgorithm algorithm, std::vector<double>& lossHistory) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ" + (datasetName.empty() ? "" : " (" + datasetName + ")"));
     
     if (algorithm == GRADIENT) {
@@ -132,7 +229,7 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         auto startTime = std::chrono::steady_clock::now();
         
         // Обучаем без валидационной выборки
-        auto lossHistory = trainer.train(network, trainData, DataSet());
+        lossHistory = trainer.train(network, trainData, DataSet());
         
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -194,7 +291,7 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         auto startTime = std::chrono::steady_clock::now();
         
         // Обучаем без валидационной выборки
-        auto lossHistory = trainer.train(network, trainData, DataSet());
+        lossHistory = trainer.train(network, trainData, DataSet());
         
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -246,7 +343,7 @@ int main() {
         
         printHeader("ЛАБОРАТОРНАЯ РАБОТА: КЛАССИФИКАЦИЯ");
         
-        // Запрос выбора алгоритм�� обучения
+        // Запрос выбора алгоритма обучения
         std::cout << "\nВыберите алгоритм обучения:\n";
         std::cout << "1 - Градиентный спуск\n";
         std::cout << "2 - Генетический алгоритм\n";
@@ -260,7 +357,11 @@ int main() {
         }
         
         TrainingAlgorithm algorithm = (choice == 1) ? GRADIENT : GENETIC;
+        std::string algorithmName = (algorithm == GRADIENT) ? "gradient" : "genetic";
         std::cout << "\nВыбран алгоритм: " << (algorithm == GRADIENT ? "Градиентный спуск" : "Генетический алгоритм") << "\n";
+        
+        // Создаем директорию для результатов
+        std::filesystem::create_directory("results");
         
         // Загружаем полные датасеты и делим на обучающую и тестовую части (80/20)
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -303,21 +404,39 @@ int main() {
         std::cout << "ДАТАСЕТ train.csv (2 признака) - ОБУЧЕНИЕ\n";
         std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network1 = createNetwork(trainTrainData.getFeatureCount(), "train");
-        trainModel(network1, trainTrainData, "train.csv", algorithm);
+        std::vector<double> history1;
+        trainModel(network1, trainTrainData, "train.csv", algorithm, history1);
+        
+        // Сохраняем историю обучения
+        if (!history1.empty()) {
+            saveTrainingHistoryToCSV(history1, "results/train_training_history.csv", "train", algorithmName);
+        }
         
         // Модель для d1.csv
         std::cout << "\n" << std::string(60, '-') << "\n";
         std::cout << "ДАТАСЕТ d1.csv (2 признака) - ОБУЧЕНИЕ\n";
         std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network2 = createNetwork(d1TrainData.getFeatureCount(), "d1");
-        trainModel(network2, d1TrainData, "d1.csv", algorithm);
+        std::vector<double> history2;
+        trainModel(network2, d1TrainData, "d1.csv", algorithm, history2);
+        
+        // Сохраняем историю обучения
+        if (!history2.empty()) {
+            saveTrainingHistoryToCSV(history2, "results/d1_training_history.csv", "d1", algorithmName);
+        }
         
         // Модель для d2.csv
         std::cout << "\n" << std::string(60, '-') << "\n";
         std::cout << "ДАТАСЕТ d2.csv (4 признака) - ОБУЧЕНИЕ\n";
         std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network3 = createNetwork(d2TrainData.getFeatureCount(), "d2");
-        trainModel(network3, d2TrainData, "d2.csv", algorithm);
+        std::vector<double> history3;
+        trainModel(network3, d2TrainData, "d2.csv", algorithm, history3);
+        
+        // Сохраняем историю обучения
+        if (!history3.empty()) {
+            saveTrainingHistoryToCSV(history3, "results/d2_training_history.csv", "d2", algorithmName);
+        }
         
         // ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ДАННЫХ (20%) И test.csv
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -352,6 +471,9 @@ int main() {
                           << prediction << "\n";
             }
             std::cout << "\nВсего сделано предсказаний: " << testDataset.size() << "\n";
+            
+            // Сохраняем предсказания в CSV
+            savePredictionsToCSV(network1, testDataset, "results/test_predictions.csv", "test");
         } else {
             std::cout << "Ошибка: количество признаков в test.csv (" << testDataset.getFeatureCount() 
                       << ") не совпадает с входным размером модели (" << network1.getArchitecture()[0] << ")\n";
@@ -380,6 +502,9 @@ int main() {
                           << prediction << "\n";
             }
             std::cout << "Всего предсказаний для d1_test: " << d1TestData.size() << "\n";
+            
+            // Сохраняем предсказания в CSV
+            savePredictionsToCSV(network2, d1TestData, "results/d1_test_predictions.csv", "d1_test");
         }
         
         // Предсказания на d2_test (20% без меток) - используем тестовую часть d2
@@ -406,6 +531,9 @@ int main() {
                           << prediction << "\n";
             }
             std::cout << "Всего предсказаний для d2_test: " << d2TestData.size() << "\n";
+            
+            // Сохраняем предсказания в CSV
+            savePredictionsToCSV(network3, d2TestData, "results/d2_test_predictions.csv", "d2_test");
         }
         
         // Итоговая оценка (на основе тестовых данных d1 и d2 с метками)
@@ -413,6 +541,10 @@ int main() {
         
         ClassificationMetrics testMetrics2 = evaluateModel(network2, d1TestData, "d1 (test)");
         ClassificationMetrics testMetrics3 = evaluateModel(network3, d2TestData, "d2 (test)");
+        
+        // Сохраняем метрики в CSV
+        saveMetricsToCSV(testMetrics2, "results/metrics.csv", "d1_test", algorithmName);
+        saveMetricsToCSV(testMetrics3, "results/metrics.csv", "d2_test", algorithmName);
         
         double f1_d1 = testMetrics2.macroF1;
         double f1_d2 = testMetrics3.macroF1;
@@ -424,6 +556,17 @@ int main() {
         std::cout << "\nФормула: 0.5 * F1(d1) + 0.5 * F1(d2)\n";
         std::cout << "Итоговая оценка: " << finalScore << "\n";
         
+        // Сохраняем итоговую оценку
+        std::ofstream finalScoreFile("results/final_score.csv");
+        if (finalScoreFile.is_open()) {
+            finalScoreFile << "dataset,algorithm,f1_d1,f1_d2,final_score,passed\n";
+            finalScoreFile << "all," << algorithmName << "," 
+                          << f1_d1 << "," << f1_d2 << "," 
+                          << finalScore << "," << (finalScore >= 0.55 ? "true" : "false") << "\n";
+            finalScoreFile.close();
+            std::cout << "✓ Итоговая оценка сохранена в: results/final_score.csv\n";
+        }
+        
         if (finalScore >= 0.55) {
             std::cout << "\n✓ ЗАЧЕТ! Итоговая оценка >= 0.55\n";
         } else {
@@ -432,6 +575,12 @@ int main() {
         }
         
         std::cout << std::string(60, '=') << "\n";
+        std::cout << "\n📁 Все результаты сохранены в директории 'results/':\n";
+        std::cout << "  - metrics.csv - метрики оценки\n";
+        std::cout << "  - final_score.csv - итоговая оценка\n";
+        std::cout << "  - *_predictions.csv - предсказания\n";
+        std::cout << "  - *_training_history.csv - история обучения\n";
+        std::cout << "\n🎨 Для визуализации запустите: python scripts/run_model.py --visualize\n";
         
     } catch (const std::exception& e) {
         std::cerr << "\nОШИБКА: " << e.what() << "\n";
