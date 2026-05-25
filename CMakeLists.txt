@@ -19,6 +19,7 @@ add_library(nn_lib
     src/neural_network/Layer.cpp
     src/neural_network/NeuralNetwork.cpp
     src/trainer/GeneticTrainer.cpp
+    src/trainer/GradientTrainer.cpp
     src/trainer/TrainerConfig.cpp
     src/metrics/ClassificationMetrics.cpp
 )

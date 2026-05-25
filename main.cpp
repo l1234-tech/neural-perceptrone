@@ -1,5 +1,5 @@
 #include "neural_network/NeuralNetwork.h"
-#include "trainer/GeneticTrainer.h"
+#include "trainer/GradientTrainer.h"
 #include "data/DataLoader.h"
 #include "data/DataSet.h"
 #include "metrics/ClassificationMetrics.h"
@@ -104,9 +104,13 @@ void createTrainTestFiles() {
         DataLoader::saveToCSV(d1TrainData, "data/d1_train.csv");
         std::cout << "Создан файл: data/d1_train.csv (80% с метками, " << d1TrainData.size() << " примеров)\n";
         
-        // Сохраняем тестовую часть без меток
+        // Сохраняем тестовую часть без меток (для предсказаний)
         DataLoader::saveToCSVNoLabels(d1TestData, "data/d1_test.csv");
         std::cout << "Создан файл: data/d1_test.csv (20% без меток, " << d1TestData.size() << " примеров)\n";
+        
+        // Сохраняем тестовую часть с метками (для оценки)
+        DataLoader::saveToCSV(d1TestData, "data/d1_test_labels.csv");
+        std::cout << "Создан файл: data/d1_test_labels.csv (20% с метками, " << d1TestData.size() << " примеров)\n";
         
         // Обработка d2.csv
         std::cout << "\nОбработка d2.csv:\n";
@@ -117,9 +121,13 @@ void createTrainTestFiles() {
         DataLoader::saveToCSV(d2TrainData, "data/d2_train.csv");
         std::cout << "Создан файл: data/d2_train.csv (80% с метками, " << d2TrainData.size() << " примеров)\n";
         
-        // Сохраняем тестовую часть без меток
+        // Сохраняем тестовую часть без меток (для предсказаний)
         DataLoader::saveToCSVNoLabels(d2TestData, "data/d2_test.csv");
         std::cout << "Создан файл: data/d2_test.csv (20% без меток, " << d2TestData.size() << " примеров)\n";
+        
+        // Сохраняем тестовую часть с метками (для оценки)
+        DataLoader::saveToCSV(d2TestData, "data/d2_test_labels.csv");
+        std::cout << "Создан файл: data/d2_test_labels.csv (20% с метками, " << d2TestData.size() << " примеров)\n";
         
         // Обработка train.csv (опционально)
         std::cout << "\nОбработка train.csv:\n";
@@ -140,36 +148,34 @@ void createTrainTestFiles() {
     }
 }
 
-NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const DataSet& testData, const std::string& datasetName = "") {
+NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const std::string& datasetName = "") {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ" + (datasetName.empty() ? "" : " (" + datasetName + ")"));
     
-    // УНИФИЦИРОВАННЫЕ параметры для всех датасетов
-    GeneticTrainer trainer;
+    // Параметры градиентного спуска
+    GradientTrainer trainer;
     
     if (datasetName.find("train") != std::string::npos) {
         // Оптимизированные параметры для train.csv (маленький датасет)
-        trainer = GeneticTrainer(
-            150,   // размер популяции (уменьшено для стабильности)
-            80,    // максимальное число поколений (уменьшено)
-            0.15,  // вероятность мутации (низкая для стабильности)
-            0.7,   // вероятность скрещивания
-            0.1,   // доля элитных особей
-            0.05,  // коэффициент L2 регуляризации (умеренный)
-            15,    // терпение ранней остановки (включено)
-            true   // использовать F1-score как fitness
+        trainer = GradientTrainer(
+            0.1,    // learning rate (высокий для быстрой сходимости)
+            200,    // epochs (больше эпох для маленького датасет)
+            8,      // batch size (маленький батч)
+            0.05,   // lambda (L2 регуляризация)
+            0,      // early stopping patience (отключено, т.к. нет валидации)
+            0.0,    // validation split (0 = нет валидации)
+            true    // shuffle
         );
         std::cout << "\nИспользуются консервативные параметры для train.csv\n";
     } else {
         // Стандартные параметры для d1.csv и d2.csv
-        trainer = GeneticTrainer(
-            100,   // размер популяции
-            50,    // максимальное число поколений
-            0.2,   // вероятность мутации
-            0.8,   // вероятность скрещивания
-            0.05,  // доля элитных особей
-            0.1,   // коэффициент L2 регуляризации
-            10,    // терпение ранней остановки (включено)
-            true   // использовать F1-score как fitness
+        trainer = GradientTrainer(
+            0.05,   // learning rate
+            150,    // epochs
+            16,     // batch size
+            0.1,    // lambda (L2 регуляризация)
+            0,      // early stopping patience (отключено)
+            0.0,    // validation split (0 = нет валидации)
+            true    // shuffle
         );
         std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2\n";
     }
@@ -179,7 +185,8 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
     std::cout << "\nНачало обучения...\n";
     auto startTime = std::chrono::steady_clock::now();
     
-    auto lossHistory = trainer.train(network, trainData, testData);
+    // Обучаем без валидационной выборки
+    auto lossHistory = trainer.train(network, trainData, DataSet());
     
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -198,16 +205,10 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         if (lossHistory.size() > 5) {
             std::cout << "\nПрогресс обучения:\n";
             for (size_t i = 0; i < lossHistory.size(); i += lossHistory.size() / 5) {
-                std::cout << "  Поколение " << std::setw(3) << i 
+                std::cout << "  Эпоха " << std::setw(3) << i 
                           << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
             }
         }
-    }
-    
-    // Выводим лучший F1-score, если он вычислялся
-    double bestF1 = trainer.getBestF1Score();
-    if (bestF1 > 0) {
-        std::cout << "Лучший F1-score на валидации: " << std::fixed << std::setprecision(4) << bestF1 << "\n";
     }
     
     return network;
@@ -238,12 +239,10 @@ int main() {
         std::cout << "# ДАТАСЕТ train.csv (2 признака) - ОБУЧЕНИЕ\n";
         std::cout << std::string(60, '#') << "\n";
         
-        // Загружаем обучающие данные (80%)
+        // Загружаем обу��ающие данные (80%)
         DataSet trainTrainData = loadDataset("data/train_train.csv", true);
-        // Для валидации используем часть обучающих данных (20% от 80% = 16% от общего)
-        auto [trainData1, valData1] = trainTrainData.split(0.8);
-        NeuralNetwork network1 = createNetwork(trainData1.getFeatureCount(), "train");
-        trainModel(network1, trainData1, valData1, "train.csv");
+        NeuralNetwork network1 = createNetwork(trainTrainData.getFeatureCount(), "train");
+        trainModel(network1, trainTrainData, "train.csv");
         
         // Датасет d1.csv (2 признака) - используем обучающую часть
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -252,9 +251,8 @@ int main() {
         
         // Загружаем обучающие данные (80%)
         DataSet d1TrainData = loadDataset("data/d1_train.csv", true);
-        auto [trainData2, valData2] = d1TrainData.split(0.8);
-        NeuralNetwork network2 = createNetwork(trainData2.getFeatureCount(), "d1");
-        trainModel(network2, trainData2, valData2, "d1.csv");
+        NeuralNetwork network2 = createNetwork(d1TrainData.getFeatureCount(), "d1");
+        trainModel(network2, d1TrainData, "d1.csv");
         
         // Датасет d2.csv (4 признака) - используем обучающую часть
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -263,9 +261,8 @@ int main() {
         
         // Загружаем обучающие данные (80%)
         DataSet d2TrainData = loadDataset("data/d2_train.csv", true);
-        auto [trainData3, valData3] = d2TrainData.split(0.8);
-        NeuralNetwork network3 = createNetwork(trainData3.getFeatureCount(), "d2");
-        trainModel(network3, trainData3, valData3, "d2.csv");
+        NeuralNetwork network3 = createNetwork(d2TrainData.getFeatureCount(), "d2");
+        trainModel(network3, d2TrainData, "d2.csv");
         
         // ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ФАЙЛАХ БЕЗ МЕТОК (20%)
         std::cout << "\n" << std::string(60, '#') << "\n";
@@ -368,20 +365,23 @@ int main() {
             std::cout << "Не удалось сделать предсказания для d2_test.csv: " << e.what() << "\n";
         }
         
-        // Итоговая оценка (на основе валидационных данных d1 и d2)
-        printHeader("ИТОГОВАЯ ОЦЕНКА");
+        // Итоговая оценка (на основе тестовых данных d1 и d2 с метками)
+        printHeader("ИТОГОВАЯ ОЦЕНКА НА ТЕСТОВЫХ ДАННЫХ (20%)");
         
-        // Оцениваем на валидационных данных (20% от 80% = 16% от общего)
-        ClassificationMetrics valMetrics2 = evaluateModel(network2, valData2, "d1 (validation)");
-        ClassificationMetrics valMetrics3 = evaluateModel(network3, valData3, "d2 (validation)");
+        // Загружаем тестовые данные с метками (для оценки)
+        DataSet d1TestDataWithLabels = loadDataset("data/d1_test_labels.csv", true);
+        DataSet d2TestDataWithLabels = loadDataset("data/d2_test_labels.csv", true);
         
-        double f1_d1 = valMetrics2.macroF1;
-        double f1_d2 = valMetrics3.macroF1;
+        ClassificationMetrics testMetrics2 = evaluateModel(network2, d1TestDataWithLabels, "d1 (test)");
+        ClassificationMetrics testMetrics3 = evaluateModel(network3, d2TestDataWithLabels, "d2 (test)");
+        
+        double f1_d1 = testMetrics2.macroF1;
+        double f1_d2 = testMetrics3.macroF1;
         double finalScore = calculateFinalScore(f1_d1, f1_d2);
         
         std::cout << std::fixed << std::setprecision(4);
-        std::cout << "F1-Score (d1 validation): " << f1_d1 << "\n";
-        std::cout << "F1-Score (d2 validation): " << f1_d2 << "\n";
+        std::cout << "F1-Score (d1 test): " << f1_d1 << "\n";
+        std::cout << "F1-Score (d2 test): " << f1_d2 << "\n";
         std::cout << "\nФормула: 0.5 * F1(d1) + 0.5 * F1(d2)\n";
         std::cout << "Итоговая оценка: " << finalScore << "\n";
         
