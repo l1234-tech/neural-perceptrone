@@ -38,7 +38,10 @@ Thumbs.db
 
 # === Логи и результаты ===
 *.log
-results/
+# Игнорировать results в корне проекта
+/results/
 
+# Но НЕ игнорировать results внутри scripts/
+!/scripts/results/
 
 .thirdparty/
