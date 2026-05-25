@@ -1,5 +1,6 @@
 #include "neural_network/NeuralNetwork.h"
 #include "trainer/GradientTrainer.h"
+#include "trainer/GeneticTrainer.h"
 #include "data/DataLoader.h"
 #include "data/DataSet.h"
 #include "metrics/ClassificationMetrics.h"
@@ -10,6 +11,8 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+
+enum TrainingAlgorithm { GRADIENT, GENETIC };
 
 void printHeader(const std::string& title) {
     std::cout << "\n" << std::string(60, '=') << "\n";
@@ -90,125 +93,137 @@ DataSet loadDataset(const std::string& filename, bool hasLabels = true) {
     return dataset;
 }
 
-// Функция для создания обучающих и тестовых файлов (80/20)
-void createTrainTestFiles() {
-    std::cout << "\nСоздание обучающих и тестовых файлов (80/20)...\n";
-    
-    try {
-        // Обработка d1.csv
-        std::cout << "\nОбработка d1.csv:\n";
-        DataSet d1FullDataset = DataLoader::loadFromCSV("data/d1.csv");
-        auto [d1TrainData, d1TestData] = d1FullDataset.split(0.8);
-        
-        // Сохраняем обучающую часть с метками
-        DataLoader::saveToCSV(d1TrainData, "data/d1_train.csv");
-        std::cout << "Создан файл: data/d1_train.csv (80% с метками, " << d1TrainData.size() << " примеров)\n";
-        
-        // Сохраняем тестовую часть без меток (для предсказаний)
-        DataLoader::saveToCSVNoLabels(d1TestData, "data/d1_test.csv");
-        std::cout << "Создан файл: data/d1_test.csv (20% без меток, " << d1TestData.size() << " примеров)\n";
-        
-        // Сохраняем тестовую часть с метками (для оценки)
-        DataLoader::saveToCSV(d1TestData, "data/d1_test_labels.csv");
-        std::cout << "Создан файл: data/d1_test_labels.csv (20% с метками, " << d1TestData.size() << " примеров)\n";
-        
-        // Обработка d2.csv
-        std::cout << "\nОбработка d2.csv:\n";
-        DataSet d2FullDataset = DataLoader::loadFromCSV("data/d2.csv");
-        auto [d2TrainData, d2TestData] = d2FullDataset.split(0.8);
-        
-        // Сохраняем обучающую часть с метками
-        DataLoader::saveToCSV(d2TrainData, "data/d2_train.csv");
-        std::cout << "Создан файл: data/d2_train.csv (80% с метками, " << d2TrainData.size() << " примеров)\n";
-        
-        // Сохраняем тестовую часть без меток (для предсказаний)
-        DataLoader::saveToCSVNoLabels(d2TestData, "data/d2_test.csv");
-        std::cout << "Создан файл: data/d2_test.csv (20% без меток, " << d2TestData.size() << " примеров)\n";
-        
-        // Сохраняем тестовую часть с метками (для оценки)
-        DataLoader::saveToCSV(d2TestData, "data/d2_test_labels.csv");
-        std::cout << "Создан файл: data/d2_test_labels.csv (20% с метками, " << d2TestData.size() << " примеров)\n";
-        
-        // Обработка train.csv (опционально)
-        std::cout << "\nОбработка train.csv:\n";
-        DataSet trainFullDataset = DataLoader::loadFromCSV("data/train.csv");
-        auto [trainTrainData, trainTestData] = trainFullDataset.split(0.8);
-        
-        // Сохраняем обучающую часть с метками
-        DataLoader::saveToCSV(trainTrainData, "data/train_train.csv");
-        std::cout << "Создан файл: data/train_train.csv (80% с метками, " << trainTrainData.size() << " примеров)\n";
-        
-        // Сохраняем тестовую часть без меток
-        DataLoader::saveToCSVNoLabels(trainTestData, "data/train_test.csv");
-        std::cout << "Создан файл: data/train_test.csv (20% без меток, " << trainTestData.size() << " примеров)\n";
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка при создании файлов: " << e.what() << "\n";
-        throw; // Пробрасываем дальше
-    }
-}
-
-NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const std::string& datasetName = "") {
+NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const std::string& datasetName, TrainingAlgorithm algorithm) {
     printHeader("ОБУЧЕНИЕ МОДЕЛИ" + (datasetName.empty() ? "" : " (" + datasetName + ")"));
     
-    // Параметры градиентного спуска
-    GradientTrainer trainer;
-    
-    if (datasetName.find("train") != std::string::npos) {
-        // Оптимизированные параметры для train.csv (маленький датасет)
-        trainer = GradientTrainer(
-            0.1,    // learning rate (высокий для быстрой сходимости)
-            200,    // epochs (больше эпох для маленького датасет)
-            8,      // batch size (маленький батч)
-            0.05,   // lambda (L2 регуляризация)
-            0,      // early stopping patience (отключено, т.к. нет валидации)
-            0.0,    // validation split (0 = нет валидации)
-            true    // shuffle
-        );
-        std::cout << "\nИспользуются консервативные параметры для train.csv\n";
-    } else {
-        // Стандартные параметры для d1.csv и d2.csv
-        trainer = GradientTrainer(
-            0.05,   // learning rate
-            150,    // epochs
-            16,     // batch size
-            0.1,    // lambda (L2 регуляризация)
-            0,      // early stopping patience (отключено)
-            0.0,    // validation split (0 = нет валидации)
-            true    // shuffle
-        );
-        std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2\n";
-    }
-    
-    std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
-    
-    std::cout << "\nНачало обучения...\n";
-    auto startTime = std::chrono::steady_clock::now();
-    
-    // Обучаем без валидационной выборки
-    auto lossHistory = trainer.train(network, trainData, DataSet());
-    
-    auto endTime = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    
-    std::cout << "\nОбучение завершено за " << duration.count() / 1000.0 << " секунд\n";
-    
-    if (!lossHistory.empty()) {
-        double initialLoss = lossHistory[0];
-        double finalLoss = lossHistory.back();
-        double improvement = (initialLoss - finalLoss) / initialLoss * 100.0;
+    if (algorithm == GRADIENT) {
+        // Параметры градиентного спуска
+        GradientTrainer trainer;
         
-        std::cout << "Начальная ошибка: " << std::fixed << std::setprecision(6) << initialLoss << "\n";
-        std::cout << "Финальная ошибка: " << finalLoss << "\n";
-        std::cout << "Улучшение: " << std::setprecision(1) << improvement << "%\n";
+        if (datasetName.find("train") != std::string::npos) {
+            // Оптимизированные параметры для train.csv (маленький датасет)
+            trainer = GradientTrainer(
+                0.1,    // learning rate (высокий для быстрой сходимости)
+                200,    // epochs (больше эпох для маленького датасет)
+                8,      // batch size (маленький батч)
+                0.05,   // lambda (L2 регуляризация)
+                0,      // early stopping patience (отключено, т.к. нет валидации)
+                0.0,    // validation split (0 = нет валидации)
+                true    // shuffle
+            );
+            std::cout << "\nИспользуются консервативные параметры для train.csv (градиентный спуск)\n";
+        } else {
+            // Стандартные параметры для d1.csv и d2.csv
+            trainer = GradientTrainer(
+                0.05,   // learning rate
+                150,    // epochs
+                16,     // batch size
+                0.1,    // lambda (L2 регуляризация)
+                0,      // early stopping patience (отключено)
+                0.0,    // validation split (0 = нет валидации)
+                true    // shuffle
+            );
+            std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2 (градиентный спуск)\n";
+        }
         
-        if (lossHistory.size() > 5) {
-            std::cout << "\nПрогресс обучения:\n";
-            for (size_t i = 0; i < lossHistory.size(); i += lossHistory.size() / 5) {
-                std::cout << "  Эпоха " << std::setw(3) << i 
-                          << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
+        std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
+        
+        std::cout << "\nНачало обучения...\n";
+        auto startTime = std::chrono::steady_clock::now();
+        
+        // Обучаем без валидационной выборки
+        auto lossHistory = trainer.train(network, trainData, DataSet());
+        
+        auto endTime = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+        
+        std::cout << "\nОбучение завершено за " << duration.count() / 1000.0 << " секунд\n";
+        
+        if (!lossHistory.empty()) {
+            double initialLoss = lossHistory[0];
+            double finalLoss = lossHistory.back();
+            double improvement = (initialLoss - finalLoss) / initialLoss * 100.0;
+            
+            std::cout << "Начальная ошибка: " << std::fixed << std::setprecision(6) << initialLoss << "\n";
+            std::cout << "Финальная ошибка: " << finalLoss << "\n";
+            std::cout << "Улучшение: " << std::setprecision(1) << improvement << "%\n";
+            
+            if (lossHistory.size() > 5) {
+                std::cout << "\nПрогресс обучения:\n";
+                for (size_t i = 0; i < lossHistory.size(); i += lossHistory.size() / 5) {
+                    std::cout << "  Эпоха " << std::setw(3) << i 
+                              << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
+                }
             }
         }
+    } else { // GENETIC
+        // Параметры генетического алгоритма
+        GeneticTrainer trainer;
+        
+        if (datasetName.find("train") != std::string::npos) {
+            // Оптимизированные параметры для train.csv (маленький датасет)
+            trainer = GeneticTrainer(
+                30,     // populationSize (меньше для маленького датасета)
+                50,     // maxGenerations (меньше поколений)
+                0.15,   // mutationRate (выше мутация)
+                0.7,    // crossoverRate
+                0.1,    // elitismRatio
+                0.05,   // regularizationLambda
+                5,      // earlyStoppingPatience
+                true    // useF1Fitness
+            );
+            std::cout << "\nИспользуются консервативные параметры для train.csv (генетический алгоритм)\n";
+        } else {
+            // Стандартные параметры для d1.csv и d2.csv
+            trainer = GeneticTrainer(
+                50,     // populationSize
+                100,    // maxGenerations
+                0.1,    // mutationRate
+                0.8,    // crossoverRate
+                0.1,    // elitismRatio
+                0.01,   // regularizationLambda
+                10,     // earlyStoppingPatience
+                true    // useF1Fitness
+            );
+            std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2 (генетический алгоритм)\n";
+        }
+        
+        std::cout << "\nКонфигурация алгоритма:\n" << trainer.getConfig() << "\n";
+        
+        std::cout << "\nНачало обучения...\n";
+        auto startTime = std::chrono::steady_clock::now();
+        
+        // Обучаем без валидационной выборки
+        auto lossHistory = trainer.train(network, trainData, DataSet());
+        
+        auto endTime = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+        
+        std::cout << "\nОбучение завершено за " << duration.count() / 1000.0 << " секунд\n";
+        
+        if (!lossHistory.empty()) {
+            double initialLoss = lossHistory[0];
+            double finalLoss = lossHistory.back();
+            double improvement = (initialLoss - finalLoss) / initialLoss * 100.0;
+            
+            std::cout << "Начальная ошибка: " << std::fixed << std::setprecision(6) << initialLoss << "\n";
+            std::cout << "Финальная ошибка: " << finalLoss << "\n";
+            std::cout << "Улучшение: " << std::setprecision(1) << improvement << "%\n";
+            
+            if (lossHistory.size() > 5) {
+                std::cout << "\nПрогресс обучения:\n";
+                for (size_t i = 0; i < lossHistory.size(); i += lossHistory.size() / 5) {
+                    std::cout << "  Эпоха " << std::setw(3) << i 
+                              << ": ошибка = " << std::setprecision(6) << lossHistory[i] << "\n";
+                }
+            }
+        }
+        
+        // Дополнительная информация для генетического алгоритма
+        double bestLoss = trainer.getBestLoss();
+        double bestF1 = trainer.getBestF1Score();
+        std::cout << "Лучшая ошибка в популяции: " << bestLoss << "\n";
+        std::cout << "Лучший F1-score в популяции: " << bestF1 << "\n";
     }
     
     return network;
@@ -231,50 +246,88 @@ int main() {
         
         printHeader("ЛАБОРАТОРНАЯ РАБОТА: КЛАССИФИКАЦИЯ");
         
-        // Создаем обучающие и тестовые файлы (80/20)
-        createTrainTestFiles();
+        // Запрос выбора алгоритм�� обучения
+        std::cout << "\nВыберите алгоритм обучения:\n";
+        std::cout << "1 - Градиентный спуск\n";
+        std::cout << "2 - Генетический алгоритм\n";
+        std::cout << "Введите номер (1 или 2): ";
         
-        // Датасет train.csv (2 признака) - используем обучающую часть
+        int choice;
+        std::cin >> choice;
+        if (choice != 1 && choice != 2) {
+            std::cout << "Неверный выбор. По умолчанию используется градиентный спуск.\n";
+            choice = 1;
+        }
+        
+        TrainingAlgorithm algorithm = (choice == 1) ? GRADIENT : GENETIC;
+        std::cout << "\nВыбран алгоритм: " << (algorithm == GRADIENT ? "Градиентный спуск" : "Генетический алгоритм") << "\n";
+        
+        // Загружаем полные датасеты и делим на обучающую и тестовую части (80/20)
         std::cout << "\n" << std::string(60, '#') << "\n";
-        std::cout << "# ДАТАСЕТ train.csv (2 признака) - ОБУЧЕНИЕ\n";
+        std::cout << "# ЗАГРУЗКА И ПОДГОТОВКА ДАННЫХ (80/20 split)\n";
         std::cout << std::string(60, '#') << "\n";
         
-        // Загружаем обу��ающие данные (80%)
-        DataSet trainTrainData = loadDataset("data/train_train.csv", true);
+        // Датасет train.csv (2 признака)
+        std::cout << "\nЗагрузка train.csv...\n";
+        DataSet trainFullDataset = loadDataset("data/train.csv", true);
+        auto [trainTrainData, trainTestData] = trainFullDataset.split(0.8);
+        std::cout << "  Обучающая часть (80%): " << trainTrainData.size() << " примеров\n";
+        std::cout << "  Тестовая часть (20%): " << trainTestData.size() << " примеров\n";
+        
+        // Датасет d1.csv (2 признака)
+        std::cout << "\nЗагрузка d1.csv...\n";
+        DataSet d1FullDataset = loadDataset("data/d1.csv", true);
+        auto [d1TrainData, d1TestData] = d1FullDataset.split(0.8);
+        std::cout << "  Обучающая часть (80%): " << d1TrainData.size() << " примеров\n";
+        std::cout << "  Тестовая часть (20%): " << d1TestData.size() << " примеров\n";
+        
+        // Датасет d2.csv (4 признака)
+        std::cout << "\nЗагрузка d2.csv...\n";
+        DataSet d2FullDataset = loadDataset("data/d2.csv", true);
+        auto [d2TrainData, d2TestData] = d2FullDataset.split(0.8);
+        std::cout << "  Обучающая часть (80%): " << d2TrainData.size() << " примеров\n";
+        std::cout << "  Тестовая часть (20%): " << d2TestData.size() << " примеров\n";
+        
+        // Датасет test.csv (2 признака, без меток) - загружаем отдельно для предсказаний
+        std::cout << "\nЗагрузка test.csv (без меток)...\n";
+        DataSet testDataset = loadDataset("data/test.csv", false);
+        std::cout << "  Загружено примеров: " << testDataset.size() << "\n";
+        
+        // ОБУЧЕНИЕ МОДЕЛЕЙ
+        std::cout << "\n" << std::string(60, '#') << "\n";
+        std::cout << "# ОБУЧЕНИЕ МОДЕЛЕЙ\n";
+        std::cout << std::string(60, '#') << "\n";
+        
+        // Модель для train.csv
+        std::cout << "\n" << std::string(60, '-') << "\n";
+        std::cout << "ДАТАСЕТ train.csv (2 признака) - ОБУЧЕНИЕ\n";
+        std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network1 = createNetwork(trainTrainData.getFeatureCount(), "train");
-        trainModel(network1, trainTrainData, "train.csv");
+        trainModel(network1, trainTrainData, "train.csv", algorithm);
         
-        // Датасет d1.csv (2 признака) - используем обучающую часть
-        std::cout << "\n" << std::string(60, '#') << "\n";
-        std::cout << "# ДАТАСЕТ d1.csv (2 признака) - ОБУЧЕНИЕ\n";
-        std::cout << std::string(60, '#') << "\n";
-        
-        // Загружаем обучающие данные (80%)
-        DataSet d1TrainData = loadDataset("data/d1_train.csv", true);
+        // Модель для d1.csv
+        std::cout << "\n" << std::string(60, '-') << "\n";
+        std::cout << "ДАТАСЕТ d1.csv (2 признака) - ОБУЧЕНИЕ\n";
+        std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network2 = createNetwork(d1TrainData.getFeatureCount(), "d1");
-        trainModel(network2, d1TrainData, "d1.csv");
+        trainModel(network2, d1TrainData, "d1.csv", algorithm);
         
-        // Датасет d2.csv (4 признака) - используем обучающую часть
-        std::cout << "\n" << std::string(60, '#') << "\n";
-        std::cout << "# ДАТАСЕТ d2.csv (4 признака) - ОБУЧЕНИЕ\n";
-        std::cout << std::string(60, '#') << "\n";
-        
-        // Загружаем обучающие данные (80%)
-        DataSet d2TrainData = loadDataset("data/d2_train.csv", true);
+        // Модель для d2.csv
+        std::cout << "\n" << std::string(60, '-') << "\n";
+        std::cout << "ДАТАСЕТ d2.csv (4 признака) - ОБУЧЕНИЕ\n";
+        std::cout << std::string(60, '-') << "\n";
         NeuralNetwork network3 = createNetwork(d2TrainData.getFeatureCount(), "d2");
-        trainModel(network3, d2TrainData, "d2.csv");
+        trainModel(network3, d2TrainData, "d2.csv", algorithm);
         
-        // ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ФАЙЛАХ БЕЗ МЕТОК (20%)
+        // ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ДАННЫХ (20%) И test.csv
         std::cout << "\n" << std::string(60, '#') << "\n";
-        std::cout << "# ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ФАЙЛАХ БЕЗ МЕТОК (20%)\n";
+        std::cout << "# ПРЕДСКАЗАНИЯ НА ТЕСТОВЫХ ДАННЫХ (20%) И test.csv\n";
         std::cout << std::string(60, '#') << "\n";
         
         // Предсказания на test.csv (2 признака, без меток)
         std::cout << "\n" << std::string(60, '-') << "\n";
         std::cout << "ДАТАСЕТ test.csv (2 признака, предсказания)\n";
         std::cout << std::string(60, '-') << "\n";
-        
-        DataSet testDataset = loadDataset("data/test.csv", false); // без меток
         
         // Используем модель, обученную на train.csv, для предсказаний на test.csv
         std::cout << "\nИспользуем модель, обученную на train.csv, для предсказаний на test.csv\n";
@@ -304,76 +357,62 @@ int main() {
                       << ") не совпадает с входным размером модели (" << network1.getArchitecture()[0] << ")\n";
         }
         
-        // Предсказания на d1_test.csv (20% без меток)
+        // Предсказания на d1_test (20% без меток) - используем тестовую часть d1
         std::cout << "\n" << std::string(60, '-') << "\n";
-        std::cout << "ДАТАСЕТ d1_test.csv (20% без меток, 2 признака)\n";
+        std::cout << "ДАТАСЕТ d1_test (20% без меток, 2 признака)\n";
         std::cout << std::string(60, '-') << "\n";
         
-        try {
-            DataSet d1TestDataset = loadDataset("data/d1_test.csv", false);
-            if (network2.getArchitecture()[0] == d1TestDataset.getFeatureCount()) {
-                std::cout << "\nПредсказания для d1_test.csv (первые 10 примеров):\n";
-                std::cout << "feature_0	feature_1	Предсказание (0/1)\n";
-                for (size_t i = 0; i < std::min(size_t(10), d1TestDataset.size()); ++i) {
-                    const auto& point = d1TestDataset.get(i);
-                    const auto& features = point.getFeatures();
-                    
-                    Vector input(features.size());
-                    for (size_t j = 0; j < features.size(); ++j) {
-                        input[j] = features[j];
-                    }
-                    
-                    int prediction = network2.predict(input);
-                    std::cout << std::fixed << std::setprecision(4) 
-                              << features[0] << "	" << features[1] << "	" 
-                              << prediction << "\n";
+        if (network2.getArchitecture()[0] == d1TestData.getFeatureCount()) {
+            std::cout << "\nПредсказания для d1_test (первые 10 примеров):\n";
+            std::cout << "feature_0	feature_1	Предсказание (0/1)\n";
+            for (size_t i = 0; i < std::min(size_t(10), d1TestData.size()); ++i) {
+                const auto& point = d1TestData.get(i);
+                const auto& features = point.getFeatures();
+                
+                Vector input(features.size());
+                for (size_t j = 0; j < features.size(); ++j) {
+                    input[j] = features[j];
                 }
-                std::cout << "Всего предсказаний для d1_test.csv: " << d1TestDataset.size() << "\n";
+                
+                int prediction = network2.predict(input);
+                std::cout << std::fixed << std::setprecision(4) 
+                          << features[0] << "	" << features[1] << "	" 
+                          << prediction << "\n";
             }
-        } catch (const std::exception& e) {
-            std::cout << "Не удалось сделать предсказания для d1_test.csv: " << e.what() << "\n";
+            std::cout << "Всего предсказаний для d1_test: " << d1TestData.size() << "\n";
         }
         
-        // Предсказания на d2_test.csv (20% без меток)
+        // Предсказания на d2_test (20% без меток) - используем тестовую часть d2
         std::cout << "\n" << std::string(60, '-') << "\n";
-        std::cout << "ДАТАСЕТ d2_test.csv (20% без меток, 4 признака)\n";
+        std::cout << "ДАТАСЕТ d2_test (20% без меток, 4 признака)\n";
         std::cout << std::string(60, '-') << "\n";
         
-        try {
-            DataSet d2TestDataset = loadDataset("data/d2_test.csv", false);
-            if (network3.getArchitecture()[0] == d2TestDataset.getFeatureCount()) {
-                std::cout << "\nПредсказания для d2_test.csv (первые 10 примеров):\n";
-                std::cout << "feature_0	feature_1	feature_2	feature_3	Предсказание (0/1)\n";
-                for (size_t i = 0; i < std::min(size_t(10), d2TestDataset.size()); ++i) {
-                    const auto& point = d2TestDataset.get(i);
-                    const auto& features = point.getFeatures();
-                    
-                    Vector input(features.size());
-                    for (size_t j = 0; j < features.size(); ++j) {
-                        input[j] = features[j];
-                    }
-                    
-                    int prediction = network3.predict(input);
-                    std::cout << std::fixed << std::setprecision(4) 
-                              << features[0] << "	" << features[1] << "	" 
-                              << features[2] << "	" << features[3] << "	"
-                              << prediction << "\n";
+        if (network3.getArchitecture()[0] == d2TestData.getFeatureCount()) {
+            std::cout << "\nПредсказания для d2_test (первые 10 примеров):\n";
+            std::cout << "feature_0	feature_1	feature_2	feature_3	Предсказание (0/1)\n";
+            for (size_t i = 0; i < std::min(size_t(10), d2TestData.size()); ++i) {
+                const auto& point = d2TestData.get(i);
+                const auto& features = point.getFeatures();
+                
+                Vector input(features.size());
+                for (size_t j = 0; j < features.size(); ++j) {
+                    input[j] = features[j];
                 }
-                std::cout << "Всего предсказаний для d2_test.csv: " << d2TestDataset.size() << "\n";
+                
+                int prediction = network3.predict(input);
+                std::cout << std::fixed << std::setprecision(4) 
+                          << features[0] << "	" << features[1] << "	" 
+                          << features[2] << "	" << features[3] << "	"
+                          << prediction << "\n";
             }
-        } catch (const std::exception& e) {
-            std::cout << "Не удалось сделать предсказания для d2_test.csv: " << e.what() << "\n";
+            std::cout << "Всего предсказаний для d2_test: " << d2TestData.size() << "\n";
         }
         
         // Итоговая оценка (на основе тестовых данных d1 и d2 с метками)
         printHeader("ИТОГОВАЯ ОЦЕНКА НА ТЕСТОВЫХ ДАННЫХ (20%)");
         
-        // Загружаем тестовые данные с метками (для оценки)
-        DataSet d1TestDataWithLabels = loadDataset("data/d1_test_labels.csv", true);
-        DataSet d2TestDataWithLabels = loadDataset("data/d2_test_labels.csv", true);
-        
-        ClassificationMetrics testMetrics2 = evaluateModel(network2, d1TestDataWithLabels, "d1 (test)");
-        ClassificationMetrics testMetrics3 = evaluateModel(network3, d2TestDataWithLabels, "d2 (test)");
+        ClassificationMetrics testMetrics2 = evaluateModel(network2, d1TestData, "d1 (test)");
+        ClassificationMetrics testMetrics3 = evaluateModel(network3, d2TestData, "d2 (test)");
         
         double f1_d1 = testMetrics2.macroF1;
         double f1_d2 = testMetrics3.macroF1;
