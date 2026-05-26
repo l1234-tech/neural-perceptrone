@@ -260,11 +260,11 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         if (datasetName.find("train") != std::string::npos) {
             // Оптимизированные параметры для train.csv (маленький датасет)
             trainer = GeneticTrainer(
-                30,     // populationSize (меньше для маленького датасета)
-                50,     // maxGenerations (меньше поколений)
-                0.15,   // mutationRate (выше мутация)
+                300,     // populationSize (меньше для маленького датасета)
+                150,     // maxGenerations (меньше поколений)
+                0.05,   // mutationRate (выше мутация)
                 0.7,    // crossoverRate
-                0.1,    // elitismRatio
+                0.15,    // elitismRatio
                 0.05,   // regularizationLambda
                 5,      // earlyStoppingPatience
                 true    // useF1Fitness
@@ -273,12 +273,12 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         } else {
             // Стандартные параметры для d1.csv и d2.csv
             trainer = GeneticTrainer(
-                50,     // populationSize
+                200,     // populationSize
                 100,    // maxGenerations
                 0.1,    // mutationRate
                 0.8,    // crossoverRate
                 0.1,    // elitismRatio
-                0.01,   // regularizationLambda
+                0.02,   // regularizationLambda
                 10,     // earlyStoppingPatience
                 true    // useF1Fitness
             );

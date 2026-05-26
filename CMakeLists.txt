@@ -4,14 +4,6 @@ project(NeuralNetworkLab)
 
 set(CMAKE_CXX_STANDARD 17)
 
-include(FetchContent)
-FetchContent_Declare(
-    pybind11
-    GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG        v2.12.0  
-)
-FetchContent_MakeAvailable(pybind11)
-
 # Пути к заголовочным файлам
 include_directories(include include/utils include/data include/neural_network include/trainer include/metrics include/visualization)
 

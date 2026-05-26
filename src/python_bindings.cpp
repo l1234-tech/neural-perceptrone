@@ -128,7 +128,7 @@ PYBIND11_MODULE(nnlib, m) {
             return py::make_tuple(train, test);
         }, "Split dataset into train and test parts")
         .def("__len__", &DataSet::size)
-        .def("__getitem__", [](DataSet& self, size_t index) -> DataPoint& {
+        .def("__getitem__", [](DataSet& self, size_t index) -> const DataPoint& {
             return self.get(index);
         }, py::return_value_policy::reference_internal)
         .def("__repr__", [](const DataSet& self) {
@@ -172,17 +172,31 @@ PYBIND11_MODULE(nnlib, m) {
              py::arg("shuffle") = true,
              "Create gradient descent trainer")
         .def("train", [](GradientTrainer& self, NeuralNetwork& network, 
+                         const DataSet& training_data) {
+            std::vector<double> history = self.train(network, training_data, DataSet());
+            return vector_to_list(history);
+        }, py::arg("network"), py::arg("training_data"),
+           "Train neural network with training data only")
+        .def("train", [](GradientTrainer& self, NeuralNetwork& network, 
                          const DataSet& training_data, 
                          const DataSet& validation_data) {
             std::vector<double> history = self.train(network, training_data, validation_data);
             return vector_to_list(history);
-        }, "Train neural network")
+        }, py::arg("network"), py::arg("training_data"), py::arg("validation_data"),
+           "Train neural network with training and validation data")
+        .def("continue_training", [](GradientTrainer& self, NeuralNetwork& network,
+                                     const DataSet& training_data) {
+            std::vector<double> history = self.continueTraining(network, training_data, DataSet());
+            return vector_to_list(history);
+        }, py::arg("network"), py::arg("training_data"),
+           "Continue training on new data with training data only")
         .def("continue_training", [](GradientTrainer& self, NeuralNetwork& network,
                                      const DataSet& training_data,
                                      const DataSet& validation_data) {
             std::vector<double> history = self.continueTraining(network, training_data, validation_data);
             return vector_to_list(history);
-        }, "Continue training on new data")
+        }, py::arg("network"), py::arg("training_data"), py::arg("validation_data"),
+           "Continue training on new data with training and validation data")
         .def("get_config", &GradientTrainer::getConfig, "Get trainer configuration")
         .def("get_metrics", [](GradientTrainer& self) {
             auto metrics = self.getMetrics();
@@ -218,17 +232,31 @@ PYBIND11_MODULE(nnlib, m) {
              py::arg("use_f1_fitness") = true,
              "Create genetic algorithm trainer")
         .def("train", [](GeneticTrainer& self, NeuralNetwork& network,
+                         const DataSet& training_data) {
+            std::vector<double> history = self.train(network, training_data, DataSet());
+            return vector_to_list(history);
+        }, py::arg("network"), py::arg("training_data"),
+           "Train neural network with training data only")
+        .def("train", [](GeneticTrainer& self, NeuralNetwork& network,
                          const DataSet& training_data,
                          const DataSet& validation_data) {
             std::vector<double> history = self.train(network, training_data, validation_data);
             return vector_to_list(history);
-        }, "Train neural network")
+        }, py::arg("network"), py::arg("training_data"), py::arg("validation_data"),
+           "Train neural network with training and validation data")
+        .def("continue_training", [](GeneticTrainer& self, NeuralNetwork& network,
+                                     const DataSet& training_data) {
+            std::vector<double> history = self.continueTraining(network, training_data, DataSet());
+            return vector_to_list(history);
+        }, py::arg("network"), py::arg("training_data"),
+           "Continue training on new data with training data only")
         .def("continue_training", [](GeneticTrainer& self, NeuralNetwork& network,
                                      const DataSet& training_data,
                                      const DataSet& validation_data) {
             std::vector<double> history = self.continueTraining(network, training_data, validation_data);
             return vector_to_list(history);
-        }, "Continue training on new data")
+        }, py::arg("network"), py::arg("training_data"), py::arg("validation_data"),
+           "Continue training on new data with training and validation data")
         .def("get_config", &GeneticTrainer::getConfig, "Get trainer configuration")
         .def("get_metrics", [](GeneticTrainer& self) {
             auto metrics = self.getMetrics();
