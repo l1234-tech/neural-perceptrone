@@ -63,6 +63,11 @@ public:
                              const DataSet& trainingData,
                              const DataSet& validationData = DataSet()) override;
     
+    // Дообучение на новых данных с уменьшенной вероятностью мутации
+    std::vector<double> continueTraining(NeuralNetwork& network, 
+                                         const DataSet& trainingData,
+                                         const DataSet& validationData = DataSet()) override;
+    
     std::string getConfig() const override;
 
     void saveState(const std::string& filename) const override;

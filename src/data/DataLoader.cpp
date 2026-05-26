@@ -7,8 +7,9 @@
 #include <cctype>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
-// Универсальный парсер CSV с поддержкой произвольного количества признаков
+// Universal CSV parser with support for arbitrary number of features
 class CSVWithLabelsParser : public UniversalCSVParser {
 public:
     DataPoint parse(const std::string& line, char delimiter) const override {
@@ -16,9 +17,9 @@ public:
         std::string token;
         std::vector<double> features;
         
-        // Читаем все значения через запятую
+        // Read all comma-separated values
         while (std::getline(ss, token, delimiter)) {
-            // Убираем пробелы в начале и конце
+            // Trim spaces from beginning and end
             size_t start = token.find_first_not_of(" 	\r\n");
             size_t end = token.find_last_not_of(" 	\r\n");
             if (start != std::string::npos) {
@@ -37,8 +38,15 @@ public:
             throw std::runtime_error("Line must have at least 2 columns (features + target): " + line);
         }
         
-        // Последний столбец — target, остальные — признаки
-        int label = static_cast<int>(std::round(features.back()));
+        // Last column is target, others are features
+        double targetValue = features.back();
+        int label = static_cast<int>(std::round(targetValue));
+        
+        // Check if label is close to integer
+        if (std::abs(targetValue - label) > 1e-6) {
+            std::cerr << "Warning: Label " << targetValue << " is not integer, rounding to " << label << std::endl;
+        }
+        
         features.pop_back();
         
         return DataPoint(features, label);
@@ -151,8 +159,10 @@ DataSet DataLoader::load() {
     size_t lineNumber = 0;
     size_t validLines = 0;
     size_t invalidLines = 0;
+    size_t expectedFeatureCount = 0;
+    bool firstValidLine = true;
     
-    // Пропускаем заголовок если есть
+    // Skip header if present
     if (hasHeader) {
         std::getline(file, line);
         lineNumber++;
@@ -167,16 +177,35 @@ DataSet DataLoader::load() {
         
         try {
             DataPoint point = parser->parse(line, delimiter);
+            
+            // Check feature count consistency
+            size_t currentFeatureCount = point.getFeatures().size();
+            if (firstValidLine) {
+                expectedFeatureCount = currentFeatureCount;
+                firstValidLine = false;
+            } else if (currentFeatureCount != expectedFeatureCount) {
+                std::cerr << "Warning: Line " << lineNumber << " has " << currentFeatureCount 
+                          << " features, expected " << expectedFeatureCount << std::endl;
+                // Continue but add the point
+            }
+            
             dataset.add(point);
             validLines++;
         } catch (const std::exception& e) {
             invalidLines++;
+            std::cerr << "Error parsing line " << lineNumber << ": " << e.what() << std::endl;
         }
     }
     
     if (validLines == 0) {
         throw std::runtime_error("No valid data loaded from file: " + filename);
     }
+    
+    if (invalidLines > 0) {
+        std::cerr << "Warning: " << invalidLines << " invalid lines skipped in file: " << filename << std::endl;
+    }
+    
+    std::cout << "Loaded " << validLines << " valid samples with " << expectedFeatureCount << " features" << std::endl;
     
     return dataset;
 }
@@ -188,7 +217,7 @@ void DataLoader::save(const DataSet& data) {
     
     std::ofstream file = openFileForWriting();
     
-    // Записываем заголовок
+    // Write header
     size_t featureCount = data.getFeatureCount();
     for (size_t i = 0; i < featureCount; ++i) {
         file << "feature_" << i;
@@ -198,7 +227,7 @@ void DataLoader::save(const DataSet& data) {
     }
     file << delimiter << "target\n";
     
-    // Записываем данные
+    // Write data
     for (size_t i = 0; i < data.size(); ++i) {
         const DataPoint& point = data.get(i);
         const std::vector<double>& features = point.getFeatures();
@@ -225,7 +254,7 @@ void DataLoader::saveNoLabels(const DataSet& data) {
     
     std::ofstream file = openFileForWriting();
     
-    // Записываем заголовок
+    // Write header
     size_t featureCount = data.getFeatureCount();
     for (size_t i = 0; i < featureCount; ++i) {
         file << "feature_" << i;
@@ -235,7 +264,7 @@ void DataLoader::saveNoLabels(const DataSet& data) {
     }
     file << "\n";
     
-    // Записываем данные (только признаки)
+    // Write data (only features)
     for (size_t i = 0; i < data.size(); ++i) {
         const DataPoint& point = data.get(i);
         const std::vector<double>& features = point.getFeatures();
@@ -261,19 +290,19 @@ size_t DataLoader::detectFeatureCount(const std::string& filename, char delimite
     
     std::string line;
     
-    // Пропускаем заголовок если есть
+    // Skip header if present
     if (hasHeader) {
         if (!std::getline(file, line)) {
             throw std::runtime_error("File is empty: " + filename);
         }
     }
     
-    // Читаем первую строку данных
+    // Read first data line
     if (!std::getline(file, line)) {
         throw std::runtime_error("No data lines in file: " + filename);
     }
     
-    // Считаем количество столбцов
+    // Count columns
     std::stringstream ss(line);
     std::string token;
     size_t columnCount = 0;
@@ -282,12 +311,12 @@ size_t DataLoader::detectFeatureCount(const std::string& filename, char delimite
         columnCount++;
     }
     
-    // Последний столбец — target, остальные — признаки
+    // Last column is target, others are features
     if (columnCount < 2) {
         throw std::runtime_error("File must have at least 2 columns (features + target)");
     }
     
-    return columnCount - 1; // Минус target
+    return columnCount - 1; // Minus target
 }
 
 bool DataLoader::hasHeaderRow(const std::string& filename, char delimiter) {
@@ -311,7 +340,7 @@ bool DataLoader::hasHeaderRow(const std::string& filename, char delimiter) {
             token = token.substr(start, end - start + 1);
         }
         
-        // Если хотя бы один токен содержит нецифровые символы (кроме точки и минуса), это заголовок
+        // If at least one token contains non-numeric characters (except dot and minus), it's a header
         bool isNumeric = true;
         bool hasDigit = false;
         

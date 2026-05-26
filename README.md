@@ -101,6 +101,7 @@ ai-project/
 - CMake >= 3.10
 - Python 3.8+ (для скриптов визуализации)
 - Библиотеки Python: numpy, matplotlib, scikit-learn (установить через `pip install -r requirements.txt`)
+- Pybind11 (для Python bindings) - опционально
 
 ### Сборка с помощью CMake
 
@@ -118,6 +119,29 @@ cmake ..
 
 # Сборка
 cmake --build .
+```
+
+### Сборка Python модуля (pybind11)
+
+Для использования нейронной сети напрямую из Python необходим pybind11. Установите его через pip или систему:
+
+```bash
+# Установка pybind11 через pip (для разработки)
+pip install pybind11
+```
+
+Затем соберите проект с поддержкой Python модуля:
+
+```bash
+cd build
+cmake .. -DPYBIND11_PYTHON_VERSION=3.8  # Укажите вашу версию Python
+cmake --build .
+```
+
+После сборки в корне проекта появится файл `nnlib.so` (Linux/macOS) или `nnlib.pyd` (Windows), который можно импортировать в Python:
+
+```python
+import nnlib
 ```
 
 ## Использование
@@ -140,6 +164,79 @@ cmake --build .
 3. Обучение градиентным спуском (на выбор)
 4. Вывод метрик классификации (на выбор)
 5. Генерацию скриптов для визуализации
+
+### Использование Python модуля
+
+Пример использования Python bindings:
+
+```python
+import nnlib
+import random
+
+# Создание нейронной сети
+network = nnlib.create_network([2, 3, 1])  # 2 входа, 3 нейрона в скрытом слое, 1 выход
+
+# Загрузка данных
+dataset = nnlib.load_dataset("data/train.csv")
+
+# Создание тренера
+trainer = nnlib.GradientTrainer(learning_rate=0.1, epochs=100)
+
+# Обучение
+history = trainer.train(network, dataset)
+
+# Предсказание
+prediction = network.predict([0.5, -0.2])
+print(f"Prediction: {prediction}")
+
+# Дообучение на новых данных (fine-tuning)
+new_data = nnlib.load_dataset("data/d1.csv")
+history_continued = trainer.continue_training(network, new_data)
+
+# Оценка метрик
+metrics = nnlib.calculate_metrics(network, dataset)
+print(f"Accuracy: {metrics.accuracy}, Weighted F1: {metrics.weighted_f1}")
+```
+
+### Использование python_scripts_example.py
+
+В корне проекта находится скрипт `python_scripts_example.py`, который демонстрирует обучение нейронных сетей на различных датасетах. Для выбора модели и настройки параметров просто отредактируйте переменные в начале скрипта:
+
+```python
+# Выберите модель: "gradient" или "genetic"
+MODEL_TYPE = "gradient"  # Измените на "genetic" для генетического алгоритма
+
+# Параметры для GradientTrainer (используются если MODEL_TYPE = "gradient")
+GRADIENT_PARAMS = {
+    "learning_rate": 0.1,
+    "epochs": 1000,
+    "batch_size": 32,
+    "lambda_": 0.01,
+    "early_stopping_patience": 10,
+    "validation_split": 0.2,
+    "shuffle": True
+}
+
+# Параметры для GeneticTrainer (используются если MODEL_TYPE = "genetic")
+GENETIC_PARAMS = {
+    "population_size": 50,
+    "max_generations": 100,
+    "mutation_rate": 0.1,
+    "crossover_rate": 0.8,
+    "elitism_ratio": 0.1,
+    "regularization_lambda": 0.01,
+    "early_stopping_patience": 10,
+    "use_f1_fitness": True
+}
+```
+
+Запустите скрипт:
+
+```bash
+python python_scripts_example.py
+```
+
+Скрипт автоматически обучает три нейронные сети на датасетах `train.csv`, `d1.csv` и `d2.csv` с соответствующими архитектурами и выводит метрики качества.
 
 ### Запуск Python скрипта
 
@@ -187,7 +284,6 @@ python run_model.py --train ../data/train.csv --test ../data/test.csv --visualiz
    ```cpp
    Visualizer::plotMultiDimensional(dataset, neuralNetwork, "pca_visualization.png");
    ```
-
 ---
 
 ### Примеры визуализаций

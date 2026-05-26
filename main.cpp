@@ -32,8 +32,8 @@ NeuralNetwork createNetwork(size_t featureCount, const std::string& datasetHint 
     } else if (featureCount == 4) {
         // Для d2.csv (4 признака) - простая архитектура
         // Архитектура: [4, 3, 1] - всего 19 параметров
-        architecture = {4, 3, 1};
-        std::cout << "Используется простая архитектура [4, 3, 1] (19 параметров)\n";
+        architecture = {4, 2, 1};
+        std::cout << "Используется простая архитектура [4, 2, 1] (19 параметров)\n";
     } else {
         // По умолчанию: [featureCount, 2, 1]
         architecture = {featureCount, 2, 1};
@@ -200,11 +200,11 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         if (datasetName.find("train") != std::string::npos) {
             // Оптимизированные параметры для train.csv (маленький датасет)
             trainer = GradientTrainer(
-                0.1,    // learning rate (высокий для быстрой сходимости)
-                200,    // epochs (больше эпох для маленького датасет)
-                8,      // batch size (маленький батч)
-                0.05,   // lambda (L2 регуляризация)
-                0,      // early stopping patience (отключено, т.к. нет валидации)
+                0.05,   // learning rate
+                150,    // epochs
+                16,     // batch size
+                0.1,    // lambda (L2 регуляризация)
+                0,      // early stopping patience (отключено)
                 0.0,    // validation split (0 = нет валидации)
                 true    // shuffle
             );
@@ -260,11 +260,11 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         if (datasetName.find("train") != std::string::npos) {
             // Оптимизированные параметры для train.csv (маленький датасет)
             trainer = GeneticTrainer(
-                30,     // populationSize (меньше для маленького датасета)
-                50,     // maxGenerations (меньше поколений)
-                0.15,   // mutationRate (выше мутация)
+                300,     // populationSize (меньше для маленького датасета)
+                150,     // maxGenerations (меньше поколений)
+                0.05,   // mutationRate (выше мутация)
                 0.7,    // crossoverRate
-                0.1,    // elitismRatio
+                0.15,    // elitismRatio
                 0.05,   // regularizationLambda
                 5,      // earlyStoppingPatience
                 true    // useF1Fitness
@@ -273,13 +273,13 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         } else {
             // Стандартные параметры для d1.csv и d2.csv
             trainer = GeneticTrainer(
-                50,     // populationSize
-                100,    // maxGenerations
-                0.1,    // mutationRate
-                0.8,    // crossoverRate
-                0.1,    // elitismRatio
-                0.01,   // regularizationLambda
-                10,     // earlyStoppingPatience
+                300,     // populationSize (меньше для маленького датасета)
+                150,     // maxGenerations (меньше поколений)
+                0.05,   // mutationRate (выше мутация)
+                0.7,    // crossoverRate
+                0.15,    // elitismRatio
+                0.05,   // regularizationLambda
+                5,      // earlyStoppingPatience
                 true    // useF1Fitness
             );
             std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2 (генетический алгоритм)\n";
@@ -546,8 +546,8 @@ int main() {
         saveMetricsToCSV(testMetrics2, "results/metrics.csv", "d1_test", algorithmName);
         saveMetricsToCSV(testMetrics3, "results/metrics.csv", "d2_test", algorithmName);
         
-        double f1_d1 = testMetrics2.macroF1;
-        double f1_d2 = testMetrics3.macroF1;
+        double f1_d1 = testMetrics2.weightedF1;
+        double f1_d2 = testMetrics3.weightedF1;
         double finalScore = calculateFinalScore(f1_d1, f1_d2);
         
         std::cout << std::fixed << std::setprecision(4);
@@ -575,12 +575,12 @@ int main() {
         }
         
         std::cout << std::string(60, '=') << "\n";
-        std::cout << "\n📁 Все результаты сохранены в директории 'results/':\n";
+        std::cout << "\nВсе результаты сохранены в директории 'results/':\n";
         std::cout << "  - metrics.csv - метрики оценки\n";
         std::cout << "  - final_score.csv - итоговая оценка\n";
         std::cout << "  - *_predictions.csv - предсказания\n";
         std::cout << "  - *_training_history.csv - история обучения\n";
-        std::cout << "\n🎨 Для визуализации запустите: python scripts/run_model.py --visualize\n";
+        std::cout << "\nДля визуализации запустите: python scripts/run_model.py --visualize\n";
         
     } catch (const std::exception& e) {
         std::cerr << "\nОШИБКА: " << e.what() << "\n";

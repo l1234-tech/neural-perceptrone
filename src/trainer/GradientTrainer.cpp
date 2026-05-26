@@ -196,6 +196,46 @@ std::vector<double> GradientTrainer::train(NeuralNetwork& network,
     return trainLossHistory;
 }
 
+std::vector<double> GradientTrainer::continueTraining(NeuralNetwork& network, 
+                                                     const DataSet& trainingData,
+                                                     const DataSet& validationData) {
+    std::cout << "Дообучение модели на новых данных...\n";
+    
+    // Сохраняем текущие истории и параметры
+    std::vector<double> oldTrainLossHistory = trainLossHistory;
+    std::vector<double> oldValLossHistory = valLossHistory;
+    std::vector<double> oldValF1History = valF1History;
+    double originalLearningRate = learningRate;
+    
+    // Уменьшаем скорость обучения для дообучения (обычно в 2-10 раз)
+    double fineTuneLearningRate = originalLearningRate * 0.5;
+    if (fineTuneLearningRate < 1e-6) fineTuneLearningRate = 1e-6;
+    learningRate = fineTuneLearningRate;
+    
+    std::cout << "Скорость обучения уменьшена с " << originalLearningRate 
+              << " до " << fineTuneLearningRate << " для дообучения\n";
+    
+    // Обучаем на новых данных (история будет очищена в методе train)
+    std::vector<double> newHistory = train(network, trainingData, validationData);
+    
+    // Восстанавливаем исходную скорость обучения
+    learningRate = originalLearningRate;
+    
+    // Объединяем истории
+    trainLossHistory.insert(trainLossHistory.begin(), oldTrainLossHistory.begin(), oldTrainLossHistory.end());
+    valLossHistory.insert(valLossHistory.begin(), oldValLossHistory.begin(), oldValLossHistory.end());
+    valF1History.insert(valF1History.begin(), oldValF1History.begin(), oldValF1History.end());
+    
+    // Объединяем возвращаемую историю
+    std::vector<double> combinedHistory = oldTrainLossHistory;
+    combinedHistory.insert(combinedHistory.end(), newHistory.begin(), newHistory.end());
+    
+    std::cout << "Дообучение завершено. Общая история обучения теперь содержит " 
+              << combinedHistory.size() << " эпох.\n";
+    
+    return combinedHistory;
+}
+
 std::string GradientTrainer::getConfig() const {
     std::string config = "Gradient Trainer Configuration:\n";
     config += "  Learning rate: " + std::to_string(learningRate) + "\n";

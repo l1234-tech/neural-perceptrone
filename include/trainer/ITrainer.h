@@ -20,6 +20,14 @@ public:
                                       const DataSet& trainingData,
                                       const DataSet& validationData = DataSet()) = 0;
 
+    // Дообучить нейронную сеть на новых данных (продолжение обучения)
+    // По умолчанию просто вызывает train, но может быть переопределен для специфичного поведения
+    virtual std::vector<double> continueTraining(NeuralNetwork& network, 
+                                                 const DataSet& trainingData,
+                                                 const DataSet& validationData = DataSet()) {
+        return train(network, trainingData, validationData);
+    }
+
     // Получить текущую конфигурацию обучения
     virtual std::string getConfig() const = 0;
 

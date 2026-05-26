@@ -30,13 +30,13 @@ GeneticTrainer::GeneticTrainer(size_t populationSize,
       useF1Fitness(useF1Fitness) {
     
     if (populationSize < 10) {
-        throw std::invalid_argument("Размер популяции должен быть не менее 10");
+        throw std::invalid_argument("Population size must be at least 10");
     }
     if (elitismRatio < 0.0 || elitismRatio > 0.5) {
-        throw std::invalid_argument("Доля элитных особей должна быть в диапазоне [0, 0.5]");
+        throw std::invalid_argument("Elitism ratio must be in range [0, 0.5]");
     }
     if (regularizationLambda < 0.0) {
-        throw std::invalid_argument("Коэффициент регуляризации должен быть неотрицательным");
+        throw std::invalid_argument("Regularization coefficient must be non-negative");
     }
 }
 
@@ -65,26 +65,26 @@ void GeneticTrainer::evaluatePopulation(NeuralNetwork& network, const DataSet& t
    
         network.setWeights(individual.chromosome);
         
-        // Вычисляем ошибку (loss) на обучающей выборке с регуляризацией L2
+        // Calculate loss on training data with L2 regularization
         individual.loss = network.computeLoss(trainingData, regularizationLambda);
         
-        // ПРОСТАЯ fitness-функция: используем F1-score на валидации ИЛИ обратную ошибку
+        // SIMPLE fitness function: use F1-score on validation OR inverse loss
         if (useF1Fitness && !validationData.empty()) {
-            // Используем F1-score на валидационной выборке как fitness
+            // Use F1-score on validation set as fitness
             ClassificationMetrics metrics = calculateMetrics(network, validationData);
             individual.f1Score = metrics.macroF1;
-            individual.fitness = individual.f1Score + 1e-8; // Добавляем epsilon для избежания нуля
+            individual.fitness = individual.f1Score + 1e-8; // Add epsilon to avoid zero
         } else {
-            // Используем обратную ошибку как fitness (традиционный подход)
+            // Use inverse loss as fitness (traditional approach)
             individual.f1Score = 0.0;
             individual.fitness = 1.0 / (individual.loss + 1e-8);
         }
     }
     
-    // Восстанавливаем оригинальные веса
+    // Restore original weights
     network.setWeights(originalWeights);
     
-    // Сортируем популяцию по приспособленности 
+    // Sort population by fitness
     std::sort(population.begin(), population.end());
 }
 
@@ -92,7 +92,7 @@ void GeneticTrainer::tournamentSelection(size_t tournamentSize) {
     std::vector<GeneticIndividual> newPopulation;
     newPopulation.reserve(populationSize);
     
-    // Сохраняем элитных особей
+    // Preserve elite individuals
     size_t eliteCount = static_cast<size_t>(populationSize * elitismRatio);
     for (size_t i = 0; i < eliteCount && i < population.size(); ++i) {
         newPopulation.push_back(population[i]);
@@ -146,7 +146,7 @@ void GeneticTrainer::simpleMutation() {
                 double mutation = randomDouble(-mutationScale, mutationScale);
                 population[i].chromosome[j] += mutation;
                 
-                // Ограничиваем значения весов
+                // Limit weight values
                 if (population[i].chromosome[j] > 5.0) population[i].chromosome[j] = 5.0;
                 if (population[i].chromosome[j] < -5.0) population[i].chromosome[j] = -5.0;
             }
@@ -158,7 +158,7 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
                                          const DataSet& trainingData,
                                          const DataSet& validationData) {
     if (trainingData.empty()) {
-        throw std::invalid_argument("Обучающая выборка не может быть пустой");
+        throw std::invalid_argument("Training dataset cannot be empty");
     }
     
     lossHistory.clear();
@@ -166,7 +166,7 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     validationLossHistory.clear();
     validationF1History.clear();
     
-    // Сохраняем валидационную выборку для вычисления F1
+    // Save validation dataset for F1 calculation
     this->validationData = validationData;
     
     initializePopulation(network);
@@ -176,10 +176,10 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     double bestValidationLoss = std::numeric_limits<double>::max();
     
     for (size_t generation = 0; generation < maxGenerations; ++generation) {
-        // Оценка приспособленности
+        // Fitness evaluation
         evaluatePopulation(network, trainingData);
         
-        // Сохраняем статистику
+        // Save statistics
         double bestLoss = population[0].loss;
         double avgLoss = 0.0;
         
@@ -191,12 +191,12 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         lossHistory.push_back(avgLoss);
         bestLossHistory.push_back(bestLoss);
         
-        // Вывод прогресса каждые 20 поколений
+        // Progress output every 20 generations
         if (generation % 20 == 0) {
-            std::cout << "Поколение " << std::setw(3) << generation 
-                      << ": лучшая ошибка = " << std::fixed << std::setprecision(6) << bestLoss
-                      << ", средняя ошибка = " << avgLoss 
-                      << ", лучшая fitness = " << std::setprecision(4) << population[0].fitness;
+            std::cout << "Generation " << std::setw(3) << generation 
+                      << ": best loss = " << std::fixed << std::setprecision(6) << bestLoss
+                      << ", average loss = " << avgLoss 
+                      << ", best fitness = " << std::setprecision(4) << population[0].fitness;
             
             if (useF1Fitness && !validationData.empty() && population[0].f1Score > 0) {
                 std::cout << ", F1 = " << std::setprecision(4) << population[0].f1Score;
@@ -204,23 +204,23 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
             std::cout << std::endl;
         }
         
-        // Ранняя остановка по валидации (если есть валидационные данные)
+        // Early stopping on validation (if validation data exists)
         if (!validationData.empty()) {
             std::vector<double> originalWeights = network.getWeights();
             network.setWeights(population[0].chromosome);
             
-            // Вычисляем ошибку на валидации
-            double validationLoss = network.computeLoss(validationData, 0.0); // без регуляризации для оценки
+            // Calculate loss on validation
+            double validationLoss = network.computeLoss(validationData, 0.0); // without regularization for evaluation
             validationLossHistory.push_back(validationLoss);
             
-            // Вычисляем F1-score на валидации
+            // Calculate F1-score on validation
             ClassificationMetrics metrics = calculateMetrics(network, validationData);
             double validationF1 = metrics.macroF1;
             validationF1History.push_back(validationF1);
             
             network.setWeights(originalWeights);
             
-            // Ранняя остановка по F1 (если используем F1 как fitness)
+            // Early stopping on F1 (if using F1 as fitness)
             if (useF1Fitness) {
                 if (validationF1 > bestValidationF1) {
                     bestValidationF1 = validationF1;
@@ -229,7 +229,7 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
                     noImprovementCount++;
                 }
             } else {
-                // Ранняя остановка по loss
+                // Early stopping on loss
                 if (validationLoss < bestValidationLoss) {
                     bestValidationLoss = validationLoss;
                     noImprovementCount = 0;
@@ -239,8 +239,8 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
             }
             
             if (noImprovementCount >= earlyStoppingPatience) {
-                std::cout << "Ранняя остановка: нет улучшений на валидации в течение " 
-                          << earlyStoppingPatience << " поколений" << std::endl;
+                std::cout << "Early stopping: no improvement on validation for " 
+                          << earlyStoppingPatience << " generations" << std::endl;
                 break;
             }
         }
@@ -250,31 +250,82 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
         simpleMutation();
     }
     
-    // Устанавливаем лучшие веса в сеть
+    // Set best weights to network
     network.setWeights(population[0].chromosome);
     
-    // Оцениваем на валидационной выборке, если она предоставлена
+    // Evaluate on validation set if provided
     if (!validationData.empty() && validationLossHistory.empty()) {
         double validationLoss = network.computeLoss(validationData, 0.0);
-        std::cout << "Ошибка на валидационной выборке: " << validationLoss << std::endl;
+        std::cout << "Loss on validation dataset: " << validationLoss << std::endl;
     }
     
     return bestLossHistory;
 }
 
+std::vector<double> GeneticTrainer::continueTraining(NeuralNetwork& network,
+                                                    const DataSet& trainingData,
+                                                    const DataSet& validationData) {
+    std::cout << "Fine-tuning model with genetic algorithm on new data...\n";
+    
+    // Save current histories and parameters
+    std::vector<double> oldLossHistory = lossHistory;
+    std::vector<double> oldBestLossHistory = bestLossHistory;
+    std::vector<double> oldValidationLossHistory = validationLossHistory;
+    std::vector<double> oldValidationF1History = validationF1History;
+    double originalMutationRate = mutationRate;
+    size_t originalMaxGenerations = maxGenerations;
+    
+    // Reduce mutation probability for fine-tuning (weights are already good)
+    double fineTuneMutationRate = originalMutationRate * 0.3;
+    if (fineTuneMutationRate < 0.01) fineTuneMutationRate = 0.01;
+    mutationRate = fineTuneMutationRate;
+    
+    // Reduce number of generations for fine-tuning
+    size_t fineTuneGenerations = originalMaxGenerations / 2;
+    if (fineTuneGenerations < 10) fineTuneGenerations = 10;
+    maxGenerations = fineTuneGenerations;
+    
+    std::cout << "Fine-tuning parameters: mutationRate reduced from " << originalMutationRate
+              << " to " << fineTuneMutationRate
+              << ", maxGenerations reduced from " << originalMaxGenerations
+              << " to " << fineTuneGenerations << "\n";
+    
+    // Train on new data (history will be cleared in train method)
+    std::vector<double> newHistory = train(network, trainingData, validationData);
+    
+    // Restore original parameters
+    mutationRate = originalMutationRate;
+    maxGenerations = originalMaxGenerations;
+    
+    // Merge histories
+    lossHistory.insert(lossHistory.begin(), oldLossHistory.begin(), oldLossHistory.end());
+    bestLossHistory.insert(bestLossHistory.begin(), oldBestLossHistory.begin(), oldBestLossHistory.end());
+    validationLossHistory.insert(validationLossHistory.begin(), oldValidationLossHistory.begin(), oldValidationLossHistory.end());
+    validationF1History.insert(validationF1History.begin(), oldValidationF1History.begin(), oldValidationF1History.end());
+    
+    // Merge returned history
+    std::vector<double> combinedHistory = oldBestLossHistory;
+    combinedHistory.insert(combinedHistory.end(), newHistory.begin(), newHistory.end());
+    
+    std::cout << "Fine-tuning completed. Total training history now contains " 
+              << combinedHistory.size() << " generations.\n";
+    
+    return combinedHistory;
+}
+
 std::string GeneticTrainer::getConfig() const {
     std::ostringstream ss;
-    ss << "Генетический алгоритм (упрощенный):\n"
-       << "  Размер популяции: " << populationSize << "\n"
-       << "  Максимальное число поколений: " << maxGenerations << "\n"
-       << "  Вероятность мутации: " << mutationRate << "\n"
-       << "  Вероятность скрещивания: " << crossoverRate << "\n"
-       << "  Доля элитных особей: " << elitismRatio << "\n"
-       << "  Коэффициент регуляризации L2: " << regularizationLambda << "\n"
-       << "  Терпение ранней остановки: " << earlyStoppingPatience << "\n"
-       << "  Использовать F1 как fitness: " << (useF1Fitness ? "да" : "нет") << "\n"
-       << "  Текущий р��змер популяции: " << population.size() << "\n"
-       << "  История ошибок: " << lossHistory.size() << " записей";
+    ss << "Genetic Algorithm (simplified):\n"
+       << "  Population size: " << populationSize << "\n"
+       << "  Maximum generations: " << maxGenerations << "\n"
+       << "  Mutation rate: " << mutationRate << "\n"
+       << "  Crossover rate: " << crossoverRate << "\n"
+       << "  Elitism ratio: " << elitismRatio << "\n"
+       << "  L2 regularization coefficient: " << regularizationLambda << "\n"
+       << "  Early stopping patience: " << earlyStoppingPatience << "\n"
+       << "  Use F1 as fitness: " << (useF1Fitness ? "yes" : "no") << "\n"
+       << "  Current population size: " << population.size() << "\n"
+       << "  Loss history: " << lossHistory.size() << " records";
     
     return ss.str();
 }
@@ -282,7 +333,7 @@ std::string GeneticTrainer::getConfig() const {
 void GeneticTrainer::saveState(const std::string& filename) const {
     std::ofstream file(filename);
     if (!file.is_open()) {
-        throw std::runtime_error("Не удалось открыть файл для сохранения: " + filename);
+        throw std::runtime_error("Failed to open file for saving: " + filename);
     }
     
     file << populationSize << " " << maxGenerations << " "
@@ -330,7 +381,7 @@ void GeneticTrainer::saveState(const std::string& filename) const {
 void GeneticTrainer::loadState(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        throw std::runtime_error("Не удалось открыть файл для загрузки: " + filename);
+        throw std::runtime_error("Failed to open file for loading: " + filename);
     }
     
     int useF1Int;
@@ -413,11 +464,11 @@ std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
     std::vector<std::pair<std::string, double>> metrics;
     
     if (!population.empty()) {
-        metrics.emplace_back("Лучшая приспособленность", population[0].fitness);
-        metrics.emplace_back("Лучшая ошибка", population[0].loss);
+        metrics.emplace_back("Best fitness", population[0].fitness);
+        metrics.emplace_back("Best loss", population[0].loss);
         
         if (useF1Fitness && !validationData.empty()) {
-            metrics.emplace_back("Лучший F1-score", population[0].f1Score);
+            metrics.emplace_back("Best F1-score", population[0].f1Score);
         }
         
         double avgFitness = 0.0;
@@ -425,38 +476,38 @@ std::vector<std::pair<std::string, double>> GeneticTrainer::getMetrics() const {
             avgFitness += ind.fitness;
         }
         avgFitness /= population.size();
-        metrics.emplace_back("Средняя приспособленность", avgFitness);
+        metrics.emplace_back("Average fitness", avgFitness);
     }
     
     if (!lossHistory.empty()) {
-        metrics.emplace_back("Начальная ошибка", lossHistory[0]);
-        metrics.emplace_back("Финальная ошибка", lossHistory.back());
+        metrics.emplace_back("Initial loss", lossHistory[0]);
+        metrics.emplace_back("Final loss", lossHistory.back());
         
         if (lossHistory.size() > 1) {
             double improvement = (lossHistory[0] - lossHistory.back()) / lossHistory[0] * 100.0;
-            metrics.emplace_back("Улучшение ошибки (%)", improvement);
+            metrics.emplace_back("Loss improvement (%)", improvement);
         }
     }
     
     if (!validationLossHistory.empty()) {
-        metrics.emplace_back("Лучшая валидационная ошибка", *std::min_element(validationLossHistory.begin(), validationLossHistory.end()));
-        metrics.emplace_back("Финальная валидационная ошибка", validationLossHistory.back());
+        metrics.emplace_back("Best validation loss", *std::min_element(validationLossHistory.begin(), validationLossHistory.end()));
+        metrics.emplace_back("Final validation loss", validationLossHistory.back());
     }
     
     if (!validationF1History.empty()) {
-        metrics.emplace_back("Лучший валидационный F1", *std::max_element(validationF1History.begin(), validationF1History.end()));
-        metrics.emplace_back("Финальный валидационный F1", validationF1History.back());
+        metrics.emplace_back("Best validation F1", *std::max_element(validationF1History.begin(), validationF1History.end()));
+        metrics.emplace_back("Final validation F1", validationF1History.back());
     }
     
-    metrics.emplace_back("Размер популяции", static_cast<double>(population.size()));
-    metrics.emplace_back("Поколений выполнено", static_cast<double>(lossHistory.size()));
+    metrics.emplace_back("Population size", static_cast<double>(population.size()));
+    metrics.emplace_back("Generations completed", static_cast<double>(lossHistory.size()));
     
     return metrics;
 }
 
 GeneticIndividual GeneticTrainer::getBestIndividual() const {
     if (population.empty()) {
-        throw std::runtime_error("Популяция пуста");
+        throw std::runtime_error("Population is empty");
     }
     
     return population[0];
@@ -489,19 +540,19 @@ void GeneticTrainer::setParameters(size_t popSize, size_t maxGen, double mutRate
 
 ClassificationMetrics GeneticTrainer::evaluateMetrics(NeuralNetwork& network, const DataSet& data) const {
     if (population.empty()) {
-        throw std::runtime_error("Популяция пуста");
+        throw std::runtime_error("Population is empty");
     }
     
-    // Сохраняем текущие веса
+    // Save current weights
     std::vector<double> originalWeights = network.getWeights();
     
-    // Устанавливаем лучшие веса
+    // Set best weights
     network.setWeights(population[0].chromosome);
     
-    // Вычисляем метрики
+    // Calculate metrics
     ClassificationMetrics metrics = calculateMetrics(network, data);
     
-    // Восстанавливаем оригинальные веса
+    // Restore original weights
     network.setWeights(originalWeights);
     
     return metrics;

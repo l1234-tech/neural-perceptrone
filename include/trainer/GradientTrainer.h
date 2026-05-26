@@ -45,6 +45,11 @@ public:
                              const DataSet& trainingData,
                              const DataSet& validationData = DataSet()) override;
     
+    // Дообучение на новых данных с уменьшенной скоростью обучения
+    std::vector<double> continueTraining(NeuralNetwork& network, 
+                                         const DataSet& trainingData,
+                                         const DataSet& validationData = DataSet()) override;
+    
     // Получить конфигурацию в виде строки
     std::string getConfig() const override;
     
