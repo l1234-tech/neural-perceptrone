@@ -27,13 +27,13 @@ NeuralNetwork createNetwork(size_t featureCount, const std::string& datasetHint 
     if (featureCount == 2) {
         // Для всех датасетов с 2 признаками (train.csv, d1.csv) - ОЧЕНЬ простая архитектура
         // Архитектура: [2, 2, 1] - всего 7 параметров
-        architecture = {2, 8, 4, 1};
-        std::cout << "Используется простая архитектура [2, 8, 4, 1] (7 параметров)\n";
+        architecture = {2, 2, 1};
+        std::cout << "Используется простая архитектура [2, 2, 1] (7 параметров)\n";
     } else if (featureCount == 4) {
         // Для d2.csv (4 признака) - простая архитектура
         // Архитектура: [4, 3, 1] - всего 19 параметров
-        architecture = {4, 8, 4, 1};
-        std::cout << "Используется простая архитектура [4, 8, 4, 1] (19 параметров)\n";
+        architecture = {4, 2, 1};
+        std::cout << "Используется простая архитектура [4, 2, 1] (19 параметров)\n";
     } else {
         // По умолчанию: [featureCount, 2, 1]
         architecture = {featureCount, 2, 1};

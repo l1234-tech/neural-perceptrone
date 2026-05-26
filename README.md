@@ -128,9 +128,6 @@ cmake --build .
 ```bash
 # Установка pybind11 через pip (для разработки)
 pip install pybind11
-
-# Или через систему (Ubuntu/Debian)
-sudo apt-get install pybind11-dev
 ```
 
 Затем соберите проект с поддержкой Python модуля:
@@ -201,6 +198,46 @@ metrics = nnlib.calculate_metrics(network, dataset)
 print(f"Accuracy: {metrics.accuracy}, Weighted F1: {metrics.weighted_f1}")
 ```
 
+### Использование python_scripts_example.py
+
+В корне проекта находится скрипт `python_scripts_example.py`, который демонстрирует обучение нейронных сетей на различных датасетах. Для выбора модели и настройки параметров просто отредактируйте переменные в начале скрипта:
+
+```python
+# Выберите модель: "gradient" или "genetic"
+MODEL_TYPE = "gradient"  # Измените на "genetic" для генетического алгоритма
+
+# Параметры для GradientTrainer (используются если MODEL_TYPE = "gradient")
+GRADIENT_PARAMS = {
+    "learning_rate": 0.1,
+    "epochs": 1000,
+    "batch_size": 32,
+    "lambda_": 0.01,
+    "early_stopping_patience": 10,
+    "validation_split": 0.2,
+    "shuffle": True
+}
+
+# Параметры для GeneticTrainer (используются если MODEL_TYPE = "genetic")
+GENETIC_PARAMS = {
+    "population_size": 50,
+    "max_generations": 100,
+    "mutation_rate": 0.1,
+    "crossover_rate": 0.8,
+    "elitism_ratio": 0.1,
+    "regularization_lambda": 0.01,
+    "early_stopping_patience": 10,
+    "use_f1_fitness": True
+}
+```
+
+Запустите скрипт:
+
+```bash
+python python_scripts_example.py
+```
+
+Скрипт автоматически обучает три нейронные сети на датасетах `train.csv`, `d1.csv` и `d2.csv` с соответствующими архитектурами и выводит метрики качества.
+
 ### Запуск Python скрипта
 
 Скрипт `scripts/run_model.py` предоставляет более гибкий интерфейс:
@@ -247,7 +284,6 @@ python run_model.py --train ../data/train.csv --test ../data/test.csv --visualiz
    ```cpp
    Visualizer::plotMultiDimensional(dataset, neuralNetwork, "pca_visualization.png");
    ```
-
 ---
 
 ### Примеры визуализаций
