@@ -7,6 +7,7 @@
 #include <cctype>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 // Универсальный парсер CSV с поддержкой произвольного количества признаков
 class CSVWithLabelsParser : public UniversalCSVParser {
@@ -38,7 +39,14 @@ public:
         }
         
         // Последний столбец — target, остальные — признаки
-        int label = static_cast<int>(std::round(features.back()));
+        double targetValue = features.back();
+        int label = static_cast<int>(std::round(targetValue));
+        
+        // Проверка, что метка близка к целому числу
+        if (std::abs(targetValue - label) > 1e-6) {
+            std::cerr << "Warning: Label " << targetValue << " is not integer, rounding to " << label << std::endl;
+        }
+        
         features.pop_back();
         
         return DataPoint(features, label);
@@ -151,6 +159,8 @@ DataSet DataLoader::load() {
     size_t lineNumber = 0;
     size_t validLines = 0;
     size_t invalidLines = 0;
+    size_t expectedFeatureCount = 0;
+    bool firstValidLine = true;
     
     // Пропускаем заголовок если есть
     if (hasHeader) {
@@ -167,16 +177,35 @@ DataSet DataLoader::load() {
         
         try {
             DataPoint point = parser->parse(line, delimiter);
+            
+            // Проверяем согласованность количества признаков
+            size_t currentFeatureCount = point.getFeatures().size();
+            if (firstValidLine) {
+                expectedFeatureCount = currentFeatureCount;
+                firstValidLine = false;
+            } else if (currentFeatureCount != expectedFeatureCount) {
+                std::cerr << "Warning: Line " << lineNumber << " has " << currentFeatureCount 
+                          << " features, expected " << expectedFeatureCount << std::endl;
+                // Продолжаем, но добавляем точку
+            }
+            
             dataset.add(point);
             validLines++;
         } catch (const std::exception& e) {
             invalidLines++;
+            std::cerr << "Error parsing line " << lineNumber << ": " << e.what() << std::endl;
         }
     }
     
     if (validLines == 0) {
         throw std::runtime_error("No valid data loaded from file: " + filename);
     }
+    
+    if (invalidLines > 0) {
+        std::cerr << "Warning: " << invalidLines << " invalid lines skipped in file: " << filename << std::endl;
+    }
+    
+    std::cout << "Loaded " << validLines << " valid samples with " << expectedFeatureCount << " features" << std::endl;
     
     return dataset;
 }

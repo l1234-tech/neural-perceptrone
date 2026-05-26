@@ -101,6 +101,7 @@ ai-project/
 - CMake >= 3.10
 - Python 3.8+ (для скриптов визуализации)
 - Библиотеки Python: numpy, matplotlib, scikit-learn (установить через `pip install -r requirements.txt`)
+- Pybind11 (для Python bindings) - опционально
 
 ### Сборка с помощью CMake
 
@@ -118,6 +119,32 @@ cmake ..
 
 # Сборка
 cmake --build .
+```
+
+### Сборка Python модуля (pybind11)
+
+Для использования нейронной сети напрямую из Python необходим pybind11. Установите его через pip или систему:
+
+```bash
+# Установка pybind11 через pip (для разработки)
+pip install pybind11
+
+# Или через систему (Ubuntu/Debian)
+sudo apt-get install pybind11-dev
+```
+
+Затем соберите проект с поддержкой Python модуля:
+
+```bash
+cd build
+cmake .. -DPYBIND11_PYTHON_VERSION=3.8  # Укажите вашу версию Python
+cmake --build .
+```
+
+После сборки в корне проекта появится файл `nnlib.so` (Linux/macOS) или `nnlib.pyd` (Windows), который можно импортировать в Python:
+
+```python
+import nnlib
 ```
 
 ## Использование
@@ -140,6 +167,39 @@ cmake --build .
 3. Обучение градиентным спуском (на выбор)
 4. Вывод метрик классификации (на выбор)
 5. Генерацию скриптов для визуализации
+
+### Использование Python модуля
+
+Пример использования Python bindings:
+
+```python
+import nnlib
+import random
+
+# Создание нейронной сети
+network = nnlib.create_network([2, 3, 1])  # 2 входа, 3 нейрона в скрытом слое, 1 выход
+
+# Загрузка данных
+dataset = nnlib.load_dataset("data/train.csv")
+
+# Создание тренера
+trainer = nnlib.GradientTrainer(learning_rate=0.1, epochs=100)
+
+# Обучение
+history = trainer.train(network, dataset)
+
+# Предсказание
+prediction = network.predict([0.5, -0.2])
+print(f"Prediction: {prediction}")
+
+# Дообучение на новых данных (fine-tuning)
+new_data = nnlib.load_dataset("data/d1.csv")
+history_continued = trainer.continue_training(network, new_data)
+
+# Оценка метрик
+metrics = nnlib.calculate_metrics(network, dataset)
+print(f"Accuracy: {metrics.accuracy}, Weighted F1: {metrics.weighted_f1}")
+```
 
 ### Запуск Python скрипта
 

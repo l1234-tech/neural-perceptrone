@@ -546,8 +546,8 @@ int main() {
         saveMetricsToCSV(testMetrics2, "results/metrics.csv", "d1_test", algorithmName);
         saveMetricsToCSV(testMetrics3, "results/metrics.csv", "d2_test", algorithmName);
         
-        double f1_d1 = testMetrics2.macroF1;
-        double f1_d2 = testMetrics3.macroF1;
+        double f1_d1 = testMetrics2.weightedF1;
+        double f1_d2 = testMetrics3.weightedF1;
         double finalScore = calculateFinalScore(f1_d1, f1_d2);
         
         std::cout << std::fixed << std::setprecision(4);
@@ -575,12 +575,12 @@ int main() {
         }
         
         std::cout << std::string(60, '=') << "\n";
-        std::cout << "\n📁 Все результаты сохранены в директории 'results/':\n";
+        std::cout << "\nВсе результаты сохранены в директории 'results/':\n";
         std::cout << "  - metrics.csv - метрики оценки\n";
         std::cout << "  - final_score.csv - итоговая оценка\n";
         std::cout << "  - *_predictions.csv - предсказания\n";
         std::cout << "  - *_training_history.csv - история обучения\n";
-        std::cout << "\n🎨 Для визуализации запустите: python scripts/run_model.py --visualize\n";
+        std::cout << "\nДля визуализации запустите: python scripts/run_model.py --visualize\n";
         
     } catch (const std::exception& e) {
         std::cerr << "\nОШИБКА: " << e.what() << "\n";

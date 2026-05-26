@@ -262,6 +262,57 @@ std::vector<double> GeneticTrainer::train(NeuralNetwork& network,
     return bestLossHistory;
 }
 
+std::vector<double> GeneticTrainer::continueTraining(NeuralNetwork& network,
+                                                    const DataSet& trainingData,
+                                                    const DataSet& validationData) {
+    std::cout << "Дообучение модели генетическим алгоритмом на новых данных...\n";
+    
+    // Сохраняем текущие истории и параметры
+    std::vector<double> oldLossHistory = lossHistory;
+    std::vector<double> oldBestLossHistory = bestLossHistory;
+    std::vector<double> oldValidationLossHistory = validationLossHistory;
+    std::vector<double> oldValidationF1History = validationF1History;
+    double originalMutationRate = mutationRate;
+    size_t originalMaxGenerations = maxGenerations;
+    
+    // Уменьшаем вероятность мутации для дообучения (ведь веса уже хорошие)
+    double fineTuneMutationRate = originalMutationRate * 0.3;
+    if (fineTuneMutationRate < 0.01) fineTuneMutationRate = 0.01;
+    mutationRate = fineTuneMutationRate;
+    
+    // Уменьшаем количество поколений для дообучения
+    size_t fineTuneGenerations = originalMaxGenerations / 2;
+    if (fineTuneGenerations < 10) fineTuneGenerations = 10;
+    maxGenerations = fineTuneGenerations;
+    
+    std::cout << "Параметры дообучения: mutationRate уменьшена с " << originalMutationRate
+              << " до " << fineTuneMutationRate
+              << ", maxGenerations уменьшено с " << originalMaxGenerations
+              << " до " << fineTuneGenerations << "\n";
+    
+    // Обучаем на новых данных (история будет очищена в методе train)
+    std::vector<double> newHistory = train(network, trainingData, validationData);
+    
+    // Восстанавливаем исходные параметры
+    mutationRate = originalMutationRate;
+    maxGenerations = originalMaxGenerations;
+    
+    // Объединяем истории
+    lossHistory.insert(lossHistory.begin(), oldLossHistory.begin(), oldLossHistory.end());
+    bestLossHistory.insert(bestLossHistory.begin(), oldBestLossHistory.begin(), oldBestLossHistory.end());
+    validationLossHistory.insert(validationLossHistory.begin(), oldValidationLossHistory.begin(), oldValidationLossHistory.end());
+    validationF1History.insert(validationF1History.begin(), oldValidationF1History.begin(), oldValidationF1History.end());
+    
+    // Объединяем возвращаемую историю
+    std::vector<double> combinedHistory = oldBestLossHistory;
+    combinedHistory.insert(combinedHistory.end(), newHistory.begin(), newHistory.end());
+    
+    std::cout << "Дообучение завершено. Общая история обучения теперь содержит " 
+              << combinedHistory.size() << " поколений.\n";
+    
+    return combinedHistory;
+}
+
 std::string GeneticTrainer::getConfig() const {
     std::ostringstream ss;
     ss << "Генетический алгоритм (упрощенный):\n"
@@ -273,7 +324,7 @@ std::string GeneticTrainer::getConfig() const {
        << "  Коэффициент регуляризации L2: " << regularizationLambda << "\n"
        << "  Терпение ранней остановки: " << earlyStoppingPatience << "\n"
        << "  Использовать F1 как fitness: " << (useF1Fitness ? "да" : "нет") << "\n"
-       << "  Текущий р��змер популяции: " << population.size() << "\n"
+       << "  Текущий размер популяции: " << population.size() << "\n"
        << "  История ошибок: " << lossHistory.size() << " записей";
     
     return ss.str();
