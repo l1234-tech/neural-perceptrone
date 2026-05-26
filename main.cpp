@@ -27,13 +27,13 @@ NeuralNetwork createNetwork(size_t featureCount, const std::string& datasetHint 
     if (featureCount == 2) {
         // Для всех датасетов с 2 признаками (train.csv, d1.csv) - ОЧЕНЬ простая архитектура
         // Архитектура: [2, 2, 1] - всего 7 параметров
-        architecture = {2, 2, 1};
-        std::cout << "Используется простая архитектура [2, 2, 1] (7 параметров)\n";
+        architecture = {2, 8, 4, 1};
+        std::cout << "Используется простая архитектура [2, 8, 4, 1] (7 параметров)\n";
     } else if (featureCount == 4) {
         // Для d2.csv (4 признака) - простая архитектура
         // Архитектура: [4, 3, 1] - всего 19 параметров
-        architecture = {4, 3, 1};
-        std::cout << "Используется простая архитектура [4, 3, 1] (19 параметров)\n";
+        architecture = {4, 8, 4, 1};
+        std::cout << "Используется простая архитектура [4, 8, 4, 1] (19 параметров)\n";
     } else {
         // По умолчанию: [featureCount, 2, 1]
         architecture = {featureCount, 2, 1};
@@ -200,11 +200,11 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         if (datasetName.find("train") != std::string::npos) {
             // Оптимизированные параметры для train.csv (маленький датасет)
             trainer = GradientTrainer(
-                0.1,    // learning rate (высокий для быстрой сходимости)
-                200,    // epochs (больше эпох для маленького датасет)
-                8,      // batch size (маленький батч)
-                0.05,   // lambda (L2 регуляризация)
-                0,      // early stopping patience (отключено, т.к. нет валидации)
+                0.05,   // learning rate
+                150,    // epochs
+                16,     // batch size
+                0.1,    // lambda (L2 регуляризация)
+                0,      // early stopping patience (отключено)
                 0.0,    // validation split (0 = нет валидации)
                 true    // shuffle
             );
@@ -273,13 +273,13 @@ NeuralNetwork trainModel(NeuralNetwork& network, const DataSet& trainData, const
         } else {
             // Стандартные параметры для d1.csv и d2.csv
             trainer = GeneticTrainer(
-                200,     // populationSize
-                100,    // maxGenerations
-                0.1,    // mutationRate
-                0.8,    // crossoverRate
-                0.1,    // elitismRatio
-                0.02,   // regularizationLambda
-                10,     // earlyStoppingPatience
+                300,     // populationSize (меньше для маленького датасета)
+                150,     // maxGenerations (меньше поколений)
+                0.05,   // mutationRate (выше мутация)
+                0.7,    // crossoverRate
+                0.15,    // elitismRatio
+                0.05,   // regularizationLambda
+                5,      // earlyStoppingPatience
                 true    // useF1Fitness
             );
             std::cout << "\nИспользуются стандартные параметры для датасетов d1/d2 (генетический алгоритм)\n";

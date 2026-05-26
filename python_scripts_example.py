@@ -1,5 +1,4 @@
 import nnlib
-import random
 import sys
 import io
 
@@ -7,29 +6,28 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# Создание нейронной сети
-network_1 = nnlib.create_network([2, 3, 1])  # 2 входа, 3 нейрона в скрытом слое, 1 выход
-network_2 = nnlib.create_network([4, 3, 1])  # 4 входа, 3 нейрона в скрытом слое, 1 выход
-# Загрузка данных
-dataset = nnlib.load_dataset("data/d1.csv")
+def train_and_evaluate(network, dataset, trainer, label="Model"):
+    """Обучает сеть, делает тестовое предсказание и выводит метрики."""
+    # Если это первое обучение, используем train, иначе continue_training
+    # В данном случае, так как сети новые, всегда используем train для чистоты,
+    # но если нужно именно дообучение ранее использованной сети, логика чуть изменится.
+    # Исходя из вашего кода, network_1 обучалась с нуля, остальные тоже создавались заново.
+    trainer.train(network, dataset)
 
-# Создание тренера
-trainer = nnlib.GradientTrainer(learning_rate=0.1, epochs=100)
+    metrics = nnlib.calculate_metrics(network, dataset)
+    print(f"{label} -> Accuracy: {metrics.accuracy:.4f}, Weighted F1: {metrics.weighted_f1:.4f}")
 
-# Обучение
-history = trainer.train(network_1, dataset)
+# Инициализация тренера (общий для всех, так как параметры одинаковые)
+trainer = nnlib.GradientTrainer(learning_rate=0.1, epochs=1000)
 
-# Предсказание
-prediction = network_1.predict([0.5, -0.2])
-print(f"Prediction: {prediction}")
+# Конфигурация сетей и данных: (архитектура, путь к данным, имя для вывода)
+configs = [
+    ([2, 3, 1], "data/train.csv", "Network_Train"),
+    ([2, 3, 1], "data/d1.csv", "Network_1"),
+    ([4, 3, 1], "data/d2.csv", "Network_2"),
+]
 
-# Дообучение на новых данных (fine-tuning)
-new_data = nnlib.load_dataset("data/d2.csv")
-history_continued = trainer.continue_training(network_2, new_data)
-
-# Оценка метрик
-metrics_1 = nnlib.calculate_metrics(network_1, dataset)
-print(f"Accuracy: {metrics_1.accuracy}, Weighted F1: {metrics_1.weighted_f1}")
-
-metrics_2 = nnlib.calculate_metrics(network_2, new_data)
-print(f"Accuracy: {metrics_2.accuracy}, Weighted F1: {metrics_2.weighted_f1}")
+for architecture, data_path, name in configs:
+    network = nnlib.create_network(architecture)
+    dataset = nnlib.load_dataset(data_path)
+    train_and_evaluate(network, dataset, trainer, label=name)

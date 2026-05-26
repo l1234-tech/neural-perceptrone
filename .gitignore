@@ -5,7 +5,11 @@
 *.ilk
 *.exp
 *.lib
+
+# Python bindings (compiled modules)
 *.pyd
+*.so
+*.dll
 
 # === Временные файлы компилятора ===
 *.idb
