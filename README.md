@@ -1,337 +1,224 @@
-# Нейронная сеть для классификации данных
+# Neural Perceptron
 
-Проект реализует нейронную сеть с возможностью обучения генетическим алгоритмом и градиентным спуском. Включает инструменты для работы с данными, визуализации и оценки качества моделей.
+<div align="center">
 
-## Структура проекта
+**Нейронная сеть на C++17 с градиентным и генетическим обучением**
 
-```
-ai-project/
-├── CMakeLists.txt              # Конфигурация сборки CMake
-├── README.md                   # Документация
-├── main.cpp                    # Основная программа для демонстрации
-├── requirements.txt            # Зависимости Python (для скриптов)
-│
-├── include/                    # Заголовочные файлы
-│   ├── neural_network/
-│   │   ├── NeuralNetwork.h    # Класс нейронной сети
-│   │   ├── Layer.h            # Класс слоя
-│   │   └── Activation.h       # Функции активации
-│   │
-│   ├── trainer/
-│   │   ├── GeneticTrainer.h   # Генетический алгоритм обучения
-│   │   ├── GradientTrainer.h  # Градиентный спуск
-│   │   ├── ITrainer.h         # Интерфейс тренера
-│   │   └── TrainerConfig.h    # Конфигурация обучения
-│   │
-│   ├── data/
-│   │   ├── DataSet.h          # Структура данных
-│   │   ├── DataPoint.h        # Одна точка данных
-│   │   ├── DataLoader.h       # Загрузка из файла
-│   │   └── XORDataGenerator.h # Генератор XOR данных
-│   │
-│   ├── utils/
-│   │   ├── Matrix.h           # Матричные операции
-│   │   ├── Vector.h           # Векторные операции
-│   │   └── Random.h           # Генерация случайных чисел
-│   │
-│   ├── metrics/
-│   │   └── ClassificationMetrics.h # Метрики классификации
-│   │
-│   └── visualization/
-│       └── Visualizer.h        # Визуализация данных и результатов
-│
-├── src/                        # Реализация (cpp файлы)
-│   ├── neural_network/
-│   │   ├── NeuralNetwork.cpp
-│   │   ├── Layer.cpp
-│   │   ├── Neuron.cpp
-│   │   └── Activation.cpp
-│   │
-│   ├── trainer/
-│   │   ├── GeneticTrainer.cpp
-│   │   ├── GradientTrainer.cpp
-│   │   └── TrainerConfig.cpp
-│   │
-│   ├── data/
-│   │   ├── DataSet.cpp
-│   │   ├── DataPoint.cpp
-│   │   ├── DataLoader.cpp
-│   │   └── XORDataGenerator.cpp
-│   │
-│   ├── utils/
-│       ├── Matrix.cpp
-│       ├── Vector.cpp
-│       └── Random.cpp
-│   │
-│   ├── metrics/
-│   │   └── ClassificationMetrics.cpp
-│   │
-│   └── visualization/
-│       └── Visualizer.cpp
-│
-├── tests/                      # Модульные тесты
-│   ├── test_main.cpp          # Главный запускатель тестов
-│   ├── test_matrix.cpp
-│   ├── test_vector.cpp
-│   ├── test_activation.cpp
-│   ├── test_genetic_trainer.cpp
-│   ├── test_gradient_trainer.cpp
-│   ├── test_data_loader.cpp
-│   ├── test_data_set.cpp
-│   ├── test_classification_metrics.cpp
-│
-├── scripts/                    # Скрипты Python
-│   └── run_model.py           # Скрипт для обучения и визуализации
-├── images/                    # Изображения для README
-│
-├── data/                       # Данные для обучения
-│   ├── train.csv              # Обучающая выборка
-│   ├── d1.csv              
-│   ├── d2.csv             
-│   └── test.csv               # Тестовая выборка
-│
-└── .sourcecraft/               # Конфигурация SourceCraft CI/CD
-    └── ci.yaml                # CI/CD для запуска тестов
-```
+Реализация полносвязной нейронной сети с собственной математической инфраструктурой, оценкой качества классификации, визуализацией результатов и Python bindings.
 
-## Сборка проекта
+[Возможности](#возможности) · [Сборка](#сборка) · [Запуск](#запуск) · [Тесты](#тестирование) · [Структура](#структура-проекта)
 
-### Требования
-- Компилятор C++ с поддержкой C++17 (g++ >= 7, clang >= 5, MSVC >= 2017)
-- CMake >= 3.10
-- Python 3.8+ (для скриптов визуализации)
-- Библиотеки Python: numpy, matplotlib, scikit-learn (установить через `pip install -r requirements.txt`)
-- Pybind11 (для Python bindings) - опционально
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)
+![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)
+![Python](https://img.shields.io/badge/Python-visualization-3776AB?style=flat-square&logo=python&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-C%2B%2B-informational?style=flat-square)
 
-### Сборка с помощью CMake
+</div>
+
+---
+
+## О проекте
+
+Проект — учебная реализация нейронной сети для задач классификации. Основная логика написана на **C++17**: от векторов и матриц до слоёв сети, алгоритмов обучения и метрик. Дополнительно доступны Python-скрипты для запуска экспериментов и анализа данных.
+
+Репозиторий содержит исходный код, CSV-датасеты, модульные тесты и примеры визуализаций.
+
+## Возможности
+
+- **Нейронная сеть:** настраиваемая архитектура по числу нейронов в слоях, прямой проход и предсказание класса.
+- **Градиентное обучение:** mini-batch, L2-регуляризация, перемешивание выборки и ранняя остановка.
+- **Генетическое обучение:** популяция кандидатов, отбор, скрещивание, мутации и элитизм.
+- **Оценка качества:** accuracy, precision, recall и F1-метрики.
+- **Работа с данными:** чтение и запись CSV, поддержка разного количества признаков и генератор XOR.
+- **Визуализация:** наборы данных, результаты классификации, PCA/t-SNE и история обучения.
+- **Python bindings:** возможность вызывать C++-логику из Python через pybind11.
+- **Тесты:** отдельные тесты для математических утилит, загрузки данных, сети, тренеров и метрик.
+
+## Как это устроено
+
+Обучение выполняется выбранным тренером. Он меняет веса сети, оценивает результат на данных и предоставляет историю обучения и метрики. В реализации предусмотрены два подхода:
+
+| Алгоритм | Идея | Когда полезен |
+|---|---|---|
+| Градиентный спуск | Обновляет веса по градиенту функции потерь | Для классического обучения с настройкой learning rate и mini-batch |
+| Генетический алгоритм | Эволюционно улучшает популяцию наборов весов | Для сравнения альтернативного подхода к оптимизации |
+
+Общая схема:
+
+`CSV → DataSet → NeuralNetwork → Trainer → Metrics / Visualization`
+
+## Демонстрационные результаты
+
+Примеры графиков, сохранённых в репозитории:
+
+### Датасет d1
+
+| Исходные данные | Результат |
+|---|---|
+| ![Датасет d1](images/d1.png) | ![Классификация d1](scripts/results/d1_2d_data.png) |
+
+### Датасет d2
+
+| Исходные данные | Результат |
+|---|---|
+| ![Датасет d2](images/d2.png) | ![Визуализация d2](scripts/results/d2_multidimensional.png) |
+
+### Обучающая выборка
+
+| Исходные данные | Результат |
+|---|---|
+| ![Обучающая выборка](images/train.png) | ![Результат для train](scripts/results/train_2d_data.png) |
+
+> Графики демонстрируют примеры визуализации. Не следует воспринимать их как универсальную оценку качества модели на любых данных.
+
+## Требования
+
+Для сборки C++-части:
+
+- C++17-совместимый компилятор (GCC, Clang или MSVC);
+- CMake 3.15 или новее;
+- Git — для загрузки pybind11 через CMake FetchContent.
+
+Для Python-скриптов и визуализации: Python 3.8+ и зависимости из `requirements.txt`.
+
+## Сборка
+
+### 1. Клонировать репозиторий
 
 ```bash
-# Клонирование репозитория (если нужно)
-git clone <repository-url>
-cd ai-project
-
-# Создание директории сборки
-mkdir build
-cd build
-
-# Конфигурация проекта
-cmake ..
-
-# Сборка
-cmake --build .
+git clone https://github.com/l1234-tech/neural-perceptrone.git
+cd neural-perceptrone
 ```
 
-### Сборка Python модуля (pybind11)
-
-Для использования нейронной сети напрямую из Python необходим pybind11. Установите его через pip или систему:
+### 2. Создать каталог сборки и собрать проект
 
 ```bash
-# Установка pybind11 через pip (для разработки)
-pip install pybind11
+cmake -S . -B build
+cmake --build build --config Release
 ```
 
-Затем соберите проект с поддержкой Python модуля:
+При конфигурации CMake скачивает pybind11 через FetchContent, поэтому для этого шага требуется доступ к сети.
+
+CMake создаёт исполняемый файл `main`, тестовый запускатель `test_runner` и Python-модуль `nnlib`. На Windows расположение исполняемых файлов зависит от генератора и конфигурации сборки; часто это `build/Release/` или `build/Debug/`.
+
+## Запуск
+
+### Основная C++-демонстрация
+
+После сборки запусти программу из корня репозитория. Расположение исполняемого файла зависит от платформы и выбранного генератора.
+
+Linux/macOS, если файл находится в `build/main`:
 
 ```bash
-cd build
-cmake .. -DPYBIND11_PYTHON_VERSION=3.8  # Укажите вашу версию Python
-cmake --build .
+./build/main
 ```
 
-После сборки в корне проекта появится файл `nnlib.so` (Linux/macOS) или `nnlib.pyd` (Windows), который можно импортировать в Python:
+Windows, если используется Visual Studio:
 
-```python
-import nnlib
+```powershell
+.\build\Release\main.exe
 ```
 
-## Использование
+Программа содержит демонстрационные сценарии обучения и анализа данных. Некоторые пути к данным разрешаются относительно рабочего каталога, поэтому запускай её из корня проекта, если код явно не задаёт другой путь.
 
-### Запуск основной программы
+### Python-скрипт с примерами
 
-Собранная программа `main` (или `main.exe` в Windows) демонстрирует возможности библиотеки:
+После сборки Python-модуль `nnlib` должен быть доступен для импорта. Установи Python-зависимости:
 
 ```bash
-./build/Debug/main
-
-или 
-
-./build/Debug/main.exe
+python -m venv .venv
 ```
 
-Программа выполняет:
-1. Создание тестового датасета XOR
-2. Обучение нейронной сети генетическим алгоритмом
-3. Обучение градиентным спуском (на выбор)
-4. Вывод метрик классификации (на выбор)
-5. Генерацию скриптов для визуализации
+Активация виртуального окружения:
 
-### Использование Python модуля
+- Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
+- Linux/macOS: `source .venv/bin/activate`
 
-Пример использования Python bindings:
-
-```python
-import nnlib
-import random
-
-# Создание нейронной сети
-network = nnlib.create_network([2, 3, 1])  # 2 входа, 3 нейрона в скрытом слое, 1 выход
-
-# Загрузка данных
-dataset = nnlib.load_dataset("data/train.csv")
-
-# Создание тренера
-trainer = nnlib.GradientTrainer(learning_rate=0.1, epochs=100)
-
-# Обучение
-history = trainer.train(network, dataset)
-
-# Предсказание
-prediction = network.predict([0.5, -0.2])
-print(f"Prediction: {prediction}")
-
-# Дообучение на новых данных (fine-tuning)
-new_data = nnlib.load_dataset("data/d1.csv")
-history_continued = trainer.continue_training(network, new_data)
-
-# Оценка метрик
-metrics = nnlib.calculate_metrics(network, dataset)
-print(f"Accuracy: {metrics.accuracy}, Weighted F1: {metrics.weighted_f1}")
-```
-
-### Использование python_scripts_example.py
-
-В корне проекта находится скрипт `python_scripts_example.py`, который демонстрирует обучение нейронных сетей на различных датасетах. Для выбора модели и настройки параметров просто отредактируйте переменные в начале скрипта:
-
-```python
-# Выберите модель: "gradient" или "genetic"
-MODEL_TYPE = "gradient"  # Измените на "genetic" для генетического алгоритма
-
-# Параметры для GradientTrainer (используются если MODEL_TYPE = "gradient")
-GRADIENT_PARAMS = {
-    "learning_rate": 0.1,
-    "epochs": 1000,
-    "batch_size": 32,
-    "lambda_": 0.01,
-    "early_stopping_patience": 10,
-    "validation_split": 0.2,
-    "shuffle": True
-}
-
-# Параметры для GeneticTrainer (используются если MODEL_TYPE = "genetic")
-GENETIC_PARAMS = {
-    "population_size": 50,
-    "max_generations": 100,
-    "mutation_rate": 0.1,
-    "crossover_rate": 0.8,
-    "elitism_ratio": 0.1,
-    "regularization_lambda": 0.01,
-    "early_stopping_patience": 10,
-    "use_f1_fitness": True
-}
-```
-
-Запустите скрипт:
+Далее:
 
 ```bash
+python -m pip install -r requirements.txt
 python python_scripts_example.py
 ```
 
-Скрипт автоматически обучает три нейронные сети на датасетах `train.csv`, `d1.csv` и `d2.csv` с соответствующими архитектурами и выводит метрики качества.
+Пример использует настройки в начале `python_scripts_example.py`: тип тренера, архитектуры сетей, наборы данных и параметры обучения.
 
-### Запуск Python скрипта
+### Python-скрипт для экспериментов
 
-Скрипт `scripts/run_model.py` предоставляет более гибкий интерфейс:
+Скрипт `scripts/run_model.py` поддерживает дополнительные параметры. Посмотреть актуальный интерфейс:
 
 ```bash
-cd scripts
-python run_model.py --help
+python scripts/run_model.py --help
 ```
 
-Основные параметры:
-- `--train` – путь к обучающим данным (CSV)
-- `--test` – путь к тестовым данным (CSV)
-- `--visualize` – включить визуализацию
-- `--model` – тип модели (`genetic` или `gradient`)
-- `--epochs` – количество эпох обучения
-
-Пример:
-```bash
-python run_model.py --train ../data/train.csv --test ../data/test.csv --visualize --model genetic
-```
-
-## Визуализация датасетов и результатов
-
-Проект включает модуль визуализации, который позволяет генерировать графики для анализа данных и результатов обучения.
-
-### Генерация визуализаций
-
-1. **2D визуализация датасета и границы решения**:
-   ```cpp
-   #include "visualization/Visualizer.h"
-   // ...
-   Visualizer::plot2D(dataset, neuralNetwork, "output_2d.png");
-   ```
-   Метод создаёт CSV файлы с данными и границей решения, а также Python скрипт `visualize_2d.py` для построения графика.
-
-2. **График истории обучения**:
-   ```cpp
-   std::vector<double> lossHistory = trainer.train(...);
-   Visualizer::plotTrainingHistory(lossHistory, "training_history.png");
-   ```
-   Генерирует CSV файл с историей ошибок и скрипт `visualize_history.py`.
-
-3. **Многомерная визуализация (PCA/t-SNE)**:
-   ```cpp
-   Visualizer::plotMultiDimensional(dataset, neuralNetwork, "pca_visualization.png");
-   ```
----
-
-### Примеры визуализаций
-
-Ниже приведены примеры графиков, которые можно получить с помощью библиотеки:
-
-1. **2D датасет с границей решения** – показывает, как нейронная сеть разделяет классы в двумерном пространстве.
-2. **График истории обучения** – отображает изменение ошибки в процессе обучения.
-3. **Многомерная визуализация (PCA)** – проекция многомерных данных на две главные компоненты.
-
-### 1. **d1.csv:**
-
-   - *Иссходный датасет*:
-
-![исходный d1](images/d1.png)
-
-   - *Полученный моделью*:
-
-![полученный d1](scripts/results/d1_2d_data.png)
-
-
-### 2. **d2.csv:**
-
-   - *Иссходный датасет*:
-
-![исходный d2](images/d2.png)
-
-   - *Полученный моделью*:
-
-![полученный d2](scripts/results/d2_multidimensional.png)
-
-
-### 3. **train.csv:**
-
-   - *Иссходный датасет*:
-
-![исходный train](images/train.png)
-
-   - *Полученный моделью*:
-
-![полученный train](scripts/results/train_2d_data.png)
-
----
+Например, запрос справки не запускает обучение и помогает проверить доступные параметры конкретной версии скрипта.
 
 ## Тестирование
 
-Используйте CI/CD конфигурацию SourceCraft, которая автоматически запускает тесты при каждом push и pull request.
+Тесты собраны в CMake-цели `test_runner`. После сборки из корня репозитория:
 
-## CI/CD
+Linux/macOS:
 
-Конфигурация CI/CD находится в `.sourcecraft/ci.yaml`. При каждом изменении кода автоматически запускается сборка и тесты. Результаты можно просмотреть в интерфейсе SourceCraft.
+```bash
+./build/test_runner
+```
+
+Windows / Visual Studio:
+
+```powershell
+.\build\Release\test_runner.exe
+```
+
+Если сборка использует другой генератор или конфигурацию, поправь путь к файлу в соответствии с содержимым `build/`.
+
+## Структура проекта
+
+```text
+.
+├── CMakeLists.txt                 # Сборка библиотеки, приложения, тестов и Python-модуля
+├── main.cpp                       # C++-демонстрация
+├── python_scripts_example.py      # Пример использования из Python
+├── include/                       # Заголовочные файлы
+│   ├── data/                      # Загрузка и структуры датасетов
+│   ├── metrics/                   # Метрики классификации
+│   ├── neural_network/            # Сеть, слои и функции активации
+│   ├── trainer/                   # Интерфейсы и алгоритмы обучения
+│   ├── utils/                     # Векторы, матрицы и случайные числа
+│   └── visualization/             # Интерфейс визуализации
+├── src/                           # Реализация модулей на C++
+├── tests/                         # Модульные тесты
+├── scripts/                       # Python-скрипты экспериментов
+│   └── results/                   # Примеры полученных графиков
+├── data/                          # CSV-датасеты
+├── images/                        # Иллюстрации исходных наборов данных
+├── requirements.txt               # Python-зависимости
+└── .sourcecraft/                  # CI для SourceCraft
+```
+
+## Где что менять
+
+- Архитектура, прямой проход и предсказание: `include/neural_network/` и `src/neural_network/`.
+- Алгоритмы обучения: `include/trainer/` и `src/trainer/`.
+- Формат и загрузка данных: `include/data/` и `src/data/`.
+- Метрики: `include/metrics/` и `src/metrics/`.
+- Визуализация: `include/visualization/` и `src/visualization/`.
+- Python-интерфейс: `src/python_bindings.cpp`.
+- Проверка поведения: `tests/`.
+
+## CI
+
+В репозитории присутствует конфигурация SourceCraft CI в `.sourcecraft/ci.yaml`, в которой предусмотрены сборка проекта через CMake и запуск `test_runner`. Фактический запуск CI зависит от конфигурации SourceCraft для репозитория.
+
+## Примечания
+
+- Файл `nnlib.pyd` в корне — скомпилированный Python-модуль для конкретной платформы и версии Python. Для переносимой сборки предпочтительно собирать модуль локально через CMake.
+- Каталоги `build/` и другие локальные артефакты сборки не нужно коммитить.
+- Датасеты в `data/` и сохранённые графики в `scripts/results/` оставлены на месте, поскольку они используются как примеры и иллюстрации.
+
+---
+
+<div align="center">
+
+**C++17 · Neural Networks · Optimization · Classification**
+
+</div>
