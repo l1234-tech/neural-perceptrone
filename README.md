@@ -6,7 +6,7 @@
 
 Реализация полносвязной нейронной сети с собственной математической инфраструктурой, оценкой качества классификации, визуализацией результатов и Python bindings.
 
-[Возможности](#возможности) · [Сборка](#сборка) · [Запуск](#запуск) · [Тесты](#тестирование) · [Структура](#структура-проекта)
+[Возможности](#возможности) · [Сборка](#сборка) · [Запуск](#запуск) · [Тесты](#тестирование) · [Структура](#структура-проекта) · [Вклад в проект](CONTRIBUTING.md)
 
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)
@@ -204,6 +204,10 @@ Windows / Visual Studio:
 - Визуализация: `include/visualization/` и `src/visualization/`.
 - Python-интерфейс: `src/python_bindings.cpp`.
 - Проверка поведения: `tests/`.
+
+## Разработка и вклад
+
+Инструкции по структуре кода, сборке, тестированию и подготовке изменений находятся в [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## CI
 
